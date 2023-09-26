@@ -14,7 +14,6 @@ from safetensors.torch import save_file as safe_save
 safetensors_available = True
 
 
-
 class LoraInjectedLinear(nn.Module):
     def __init__(
         self, in_features, out_features, bias=False, r=4, dropout_p=0.1, scale=1.0
@@ -259,7 +258,8 @@ def inject_trainable_lora(
 
     for _module, name, _child_module in _find_modules(
         model, target_replace_module, search_class=[nn.Linear]
-    ):
+    ):  
+
         weight = _child_module.weight
         bias = _child_module.bias
         if verbose:

@@ -1,0 +1,38 @@
+load the lora in the unet using the method from hugging face
+https://github.com/huggingface/diffusers/blob/main/examples/text_to_image/train_text_to_image_lora.py#L163
+
+# Set correct lora layers
+lora_attn_procs = {}
+for name in unet.attn_processors.keys():
+    cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
+    if name.startswith("mid_block"):
+        hidden_size = unet.config.block_out_channels[-1]
+    elif name.startswith("up_blocks"):
+        block_id = int(name[len("up_blocks.")])
+        hidden_size = list(reversed(unet.config.block_out_channels))[block_id]
+    elif name.startswith("down_blocks"):
+        block_id = int(name[len("down_blocks.")])
+        hidden_size = unet.config.block_out_channels[block_id]
+
+    lora_attn_procs[name] = LoRAAttnProcessor(
+        hidden_size=hidden_size,
+        cross_attention_dim=cross_attention_dim,
+        rank=args.rank,
+    )
+
+unet.set_attn_processor(lora_attn_procs)
+
+lora_layers = AttnProcsLayers(unet.attn_processors)
+
+optimizer = optimizer_cls(
+        lora_layers.parameters(),
+        lr=args.learning_rate,
+        betas=(args.adam_beta1, args.adam_beta2),
+        weight_decay=args.adam_weight_decay,
+        eps=args.adam_epsilon,
+    )
+
+unet.save_attn_procs(args.output_dir)
+
+MAIN PROBLEM: it cant inject loras into cross attention and GEGLU
+
