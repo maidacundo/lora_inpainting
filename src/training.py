@@ -21,7 +21,6 @@ from .evaluate import evaluate_pipe
 def train(config):
     download_roboflow_dataset(config)
     set_random_seed(config.seed)
-    assert config.prompt.global_caption != '', "Please provide a global caption"
 
     text_encoder, vae, unet, tokenizer, noise_scheduler, placeholder_token_ids = get_models(
         config.model.model_path,
@@ -171,7 +170,6 @@ def train(config):
 
     for epoch in range(math.ceil(config.train.total_steps / len(train_dataloader))):
         for batch in train_dataloader:
-            lr_scheduler_lora.step()
             optimizer_lora.zero_grad()
             loss_lora = loss_step(
                 batch,
@@ -192,6 +190,7 @@ def train(config):
                     max_norm=config.train.clip_gradients_max_norm
                 )
             optimizer_lora.step()
+            lr_scheduler_lora.step()
             progress_bar.update(1)
             logs = {
                 "loss_lora": loss_lora.detach().item(),
@@ -237,7 +236,7 @@ def train(config):
                         valid_dataset,
                         config,
                     )
-                save_path = os.path.join(config.train.checkpoint_folder, f'lora_{epoch}.safetensor')
+                save_path = os.path.join(config.train.checkpoint_folder, f'lora_{epoch}.safetensors')
                 save_all(
                     unet,
                     text_encoder,
@@ -245,7 +244,7 @@ def train(config):
                     placeholder_token_ids=None,
                     placeholder_tokens=None,
                     save_lora=True,
-                    save_ti=True,
+                    save_ti=False,
                     target_replace_module_text=TEXT_ENCODER_DEFAULT_TARGET_REPLACE,
                     target_replace_module_unet=UNET_DEFAULT_TARGET_REPLACE,
                     safe_form=True,

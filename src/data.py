@@ -22,7 +22,7 @@ class InpaintLoraDataset(Dataset):
         instance_data_root,
         tokenizer,
         label_mapping: dict,
-        global_caption: str,
+        global_caption: Optional[str] = None,
         token_map: Optional[dict] = None,
         size=512,
         h_flip=True,
@@ -98,7 +98,8 @@ class InpaintLoraDataset(Dataset):
         example["instance_masked_values"] = self.image_transforms(example["instance_masked_values"])
         example["instance_masks"] = self.mask_transforms(example["instance_masks"])
 
-        text = self.label_mapping[label] + ', ' + self.global_caption.strip()
+        if self.global_caption:
+            text = self.label_mapping[label] + ', ' + self.global_caption.strip()
 
         if self.h_flip and random.random() > 0.5:
             hflip = transforms.RandomHorizontalFlip(p=1)
