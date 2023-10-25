@@ -159,7 +159,7 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# Bounding-Boxes-3 folder
-Bounding-Boxes-3/
-White-Facade-2/
 models/
+src/white-facades-1/
+src/wandb/
+src/checkpoints/

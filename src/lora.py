@@ -1,10 +1,7 @@
 import json
-import math
 from itertools import groupby
-from typing import Callable, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import Dict, List, Optional, Set, Tuple, Type, Union
 
-import numpy as np
-import PIL
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -35,11 +32,11 @@ class LoraInjectedLinear(nn.Module):
         nn.init.normal_(self.lora_down.weight, std=1 / r)
         nn.init.zeros_(self.lora_up.weight)
 
-    def forward(self, input, scale):
+    def forward(self, input, scale=1):
         return (
             self.linear(input)
             + self.dropout(self.lora_up(self.selector(self.lora_down(input))))
-            * scale
+            * self.scale
         )
 
     def realize_as_lora(self):
@@ -285,8 +282,8 @@ def inject_trainable_lora(
         require_grad_params.append(_module._modules[name].lora_down.parameters())
 
         if loras != None:
-            _module._modules[name].lora_up.weight = loras.pop(0)
-            _module._modules[name].lora_down.weight = loras.pop(0)
+            _module._modules[name].lora_up.weight = nn.Parameter(loras.pop(0))
+            _module._modules[name].lora_down.weight = nn.Parameter(loras.pop(0))
 
         _module._modules[name].lora_up.weight.requires_grad = True
         _module._modules[name].lora_down.weight.requires_grad = True
@@ -1080,9 +1077,11 @@ def save_all(
         embeds = {}
 
         if save_lora:
-
             loras["unet"] = (unet, target_replace_module_unet)
-            loras["text_encoder"] = (text_encoder, target_replace_module_text)
+            loras["text_encoder"] = (
+                text_encoder,
+                target_replace_module_text,
+            )
 
         if save_ti:
             for tok, tok_id in zip(placeholder_tokens, placeholder_token_ids):
@@ -1093,4 +1092,87 @@ def save_all(
                 )
                 embeds[tok] = learned_embeds.detach().cpu()
 
-        save_safeloras_with_embeds(loras, embeds, save_path)
+        save_safeloras_for_webui(
+            loras, embeds, save_path
+        )
+
+
+def extract_lora_tensor(
+    model,
+    target_replace_module=DEFAULT_TARGET_REPLACE,
+    as_fp16=True,
+    prefix="lora_te",
+):
+    """
+    Extracts lora tensors from a model and returns them as a dictionary of weights
+    """
+    loras_dict = {}
+
+    for name, module in model.named_modules():
+        if module.__class__.__name__ in target_replace_module:
+            for child_name, child_module in module.named_modules():
+                if child_module.__class__.__name__ == "LoraInjectedLinear" or (
+                    child_module.__class__.__name__ == "LoraInjectedConv2d"
+                    and child_module.kernel_size == (1, 1)
+                ):
+                    lora_name = prefix + "." + name + "." + child_name
+                    lora_name = lora_name.replace(".", "_")
+                    up, down = child_module.realize_as_lora()
+                    alpha = torch.tensor(up.shape[1])
+                    if as_fp16:
+                        up = up.to(torch.float16)
+                        down = down.to(torch.float16)
+                        alpha = alpha.to(torch.float16)
+                    loras_dict[lora_name + ".lora_up.weight"] = up
+                    loras_dict[lora_name + ".lora_down.weight"] = down
+                    loras_dict[lora_name + ".alpha"] = alpha
+
+    if len(loras_dict) == 0:
+        raise ValueError("No lora injected.")
+
+    return loras_dict
+
+
+def save_safeloras_for_webui(
+    modelmap: Dict[str, Tuple[nn.Module, Set[str]]] = {},
+    embeds: Dict[str, torch.Tensor] = {},
+    outpath="./lora.safetensors",
+):
+    """
+    Saves the Lora for A1111 from multiple modules in a single safetensor file.
+    Reference from @tengshaofeng
+
+    modelmap is a dictionary of {
+        "module name": (module, target_replace_module)
+    }
+    """
+
+    weights = {}
+    metadata = {}
+
+    for name, (model, target_replace_module) in modelmap.items():
+        metadata[name] = json.dumps(list(target_replace_module))
+        if name == "unet":
+            weights_tmp = extract_lora_tensor(
+                model, target_replace_module, prefix="lora_unet"
+            )
+        else:
+            weights_tmp = extract_lora_tensor(
+                model, target_replace_module, prefix="lora_te"
+            )
+        weights.update(weights_tmp)
+
+    metadata_embeds = {}
+    weights_embeds = {}
+    for token, tensor in embeds.items():
+        metadata_embeds[token] = EMBED_FLAG
+        weights_embeds[token] = tensor
+    # saving the TI embedding to seperate file
+    safe_save(
+        weights_embeds,
+        outpath.replace(".safetensors", "_ti.safetensors"),
+        metadata_embeds,
+    )
+
+    print(f"Saving weights to {outpath}")
+    safe_save(weights, outpath, metadata)
