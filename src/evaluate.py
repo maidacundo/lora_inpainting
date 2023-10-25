@@ -27,29 +27,32 @@ def evaluate_pipe(
                     feature_extractor=None,
                 )
         for prompt in config.eval.prompts:
-
-            prompt = prompt + ', ' + config.global_caption
+            
+            if config.prompt.global_caption:
+                prompt = prompt + ', ' + config.prompt.global_caption
             images_log = {}
             
             for strength in config.eval.strengths:
-                examples = []
+                generations = []
                 for example in eval_dataset:
 
                     image = example["instance_images"]
                     mask_image = example["instance_masks"]
 
-                    generated_image = pipe(prompt=prompt,
-                                        image=image,
-                                        mask_image=mask_image,
-                                        generator=g_cuda,
-                                        num_inference_steps=20,
-                                        height=image.shape[1],
-                                        width=image.shape[2],
-                                        strength=strength,
-                                        ).images[0]
+                    generated_image = pipe(
+                        prompt=prompt,
+                        negative_prompt=config.prompt.negative_caption,
+                        image=image,
+                        mask_image=mask_image,
+                        generator=g_cuda,
+                        num_inference_steps=20,
+                        height=image.shape[1],
+                        width=image.shape[2],
+                        strength=strength,
+                        ).images[0]
                     
                     image = wandb.Image(generated_image)
-                    examples.append(image)
+                    generations.append(image)
 
-            images_log[prompt] = example
+            images_log[prompt] = generations
     wandb.log({f"validation images": images_log})

@@ -163,3 +163,4 @@ models/
 src/white-facades-1/
 src/wandb/
 src/checkpoints/
+git_clone_runpod.txt
