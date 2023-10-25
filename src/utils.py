@@ -103,7 +103,7 @@ def enlarge_mask(mask, scaling_pixels=1):
     return enlarged_mask.astype(np.uint8)
 
 # generate mask from polygons
-def generate_masks(polygons, image_size, num_samples=1, scaling_pixels=None, labels_filter=None):
+def generate_masks(polygons, image_size, num_samples=None, scaling_pixels=None, labels_filter=None):
     mask = np.zeros(image_size, dtype=np.uint8)
     i=0
     class_id = None
@@ -122,7 +122,7 @@ def generate_masks(polygons, image_size, num_samples=1, scaling_pixels=None, lab
             mask[mask_indices] = 1
 
             i+=1
-            if (i == num_samples):
+            if num_samples and (i == num_samples):
                 break
 
     if scaling_pixels:
@@ -130,7 +130,7 @@ def generate_masks(polygons, image_size, num_samples=1, scaling_pixels=None, lab
 
     return mask, class_id
 
-def create_dataset(image_paths, label_paths, num_samples=1, resize_shape=None, scaling_pixels=None, labels_filter=None):
+def create_dataset(image_paths, label_paths, num_samples=None, resize_shape=None, scaling_pixels=None, labels_filter=None):
     images = []
     masks = []
     labels = []

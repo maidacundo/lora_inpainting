@@ -43,7 +43,7 @@ class InpaintLoraDataset(Dataset):
         label_path = os.path.join(instance_data_root, "labels")
 
         # Prepare the instance images and masks
-        self.imgs, self.masks, self.labels = create_dataset(img_path, label_path, num_samples=2, scaling_pixels=scaling_pixels, labels_filter=labels_filter)
+        self.imgs, self.masks, self.labels = create_dataset(img_path, label_path, num_samples=None, scaling_pixels=scaling_pixels, labels_filter=labels_filter)
         self.label_mapping = label_mapping
 
         self.global_caption = global_caption
@@ -98,8 +98,9 @@ class InpaintLoraDataset(Dataset):
         example["instance_masked_values"] = self.image_transforms(example["instance_masked_values"])
         example["instance_masks"] = self.mask_transforms(example["instance_masks"])
 
+        text = self.label_mapping[label]
         if self.global_caption:
-            text = self.label_mapping[label] + ', ' + self.global_caption.strip()
+            text += ', ' + self.global_caption.strip()
 
         if self.h_flip and random.random() > 0.5:
             hflip = transforms.RandomHorizontalFlip(p=1)
