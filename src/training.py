@@ -153,7 +153,7 @@ def train(config):
         optimizer=optimizer_lora,
         num_warmup_steps=config.train.scheduler_warmup_steps,
         num_training_steps=config.train.total_steps,
-        num_cycles=10,
+        num_cycles=config.train.scheduler_num_cycles,
     )
 
     if not os.path.exists(config.train.checkpoint_folder):
@@ -193,62 +193,66 @@ def train(config):
             progress_bar.update(1)
             logs = {
                 "loss_lora": loss_lora.detach().item(),
-                "lr_lora": lr_scheduler_lora.get_last_lr()[0],
+                "lr": lr_scheduler_lora.get_last_lr()[0],
             }
             progress_bar.set_postfix(**logs)
             global_step += 1
-        
-            if global_step % config.train.save_freq == 0:
-                logs = {
-                    'train_loss': loss_sum / len(train_dataloader),
-                    'lr': lr_scheduler_lora.get_last_lr()[0]
-                }
 
-                loss_sum = 0.0
-                # evaluate the unet
-                unet.eval()
-                text_encoder.eval()
-                for _ in range(config.eval.eval_epochs):
-                    for batch in valid_dataloader:
-                        with torch.no_grad():
-                            val_loss = loss_step(
-                                batch,
-                                unet,
-                                vae,
-                                text_encoder,
-                                noise_scheduler,
-                                t_mutliplier=0.8,
-                                mixed_precision=True,
-                                mask_temperature=config.train.mask_temperature,
-                            )
-                            loss_sum += val_loss.detach().item()
-                logs['val_loss'] = loss_sum / (len(valid_dataloader) * config.eval.eval_epochs)
-                loss_sum = 0.0
+        if config.log_wandb:
+            logs = {
+                "loss_lora": loss_sum / len(train_dataloader),
+                "lr": lr_scheduler_lora.get_last_lr()[0],
+            }
+            loss_sum = 0.0
 
-                wandb.log(logs)
-                if config.log_wandb:
-                    evaluate_pipe(
-                        vae,
-                        text_encoder,
-                        tokenizer,
-                        unet,
-                        noise_scheduler,
-                        valid_dataset,
-                        config,
-                    )
-                save_path = os.path.join(config.train.checkpoint_folder, f'lora_{epoch}.safetensors')
-                save_all(
-                    unet,
+        if epoch % config.train.eval_every_n_epochs == 0:
+
+            loss_sum = 0.0
+            # evaluate the unet
+            unet.eval()
+            text_encoder.eval()
+            for _ in range(config.eval.eval_epochs):
+                for batch in valid_dataloader:
+                    with torch.no_grad():
+                        val_loss = loss_step(
+                            batch,
+                            unet,
+                            vae,
+                            text_encoder,
+                            noise_scheduler,
+                            t_mutliplier=0.8,
+                            mixed_precision=True,
+                            mask_temperature=config.train.mask_temperature,
+                        )
+                        loss_sum += val_loss.detach().item()
+
+            logs['val_loss'] = loss_sum / (len(valid_dataloader) * config.eval.eval_epochs)
+            loss_sum = 0.0
+            if config.log_wandb:
+                images_log = evaluate_pipe(
+                    vae,
                     text_encoder,
-                    save_path,
-                    placeholder_token_ids=None,
-                    placeholder_tokens=None,
-                    save_lora=True,
-                    save_ti=False,
-                    target_replace_module_text=TEXT_ENCODER_DEFAULT_TARGET_REPLACE,
-                    target_replace_module_unet=UNET_DEFAULT_TARGET_REPLACE,
-                    safe_form=True,
+                    tokenizer,
+                    unet,
+                    noise_scheduler,
+                    valid_dataset,
+                    config,
                 )
+                wandb.log(images_log, step=global_step)
+            save_path = os.path.join(config.train.checkpoint_folder, f'lora_{epoch}.safetensors')
+            save_all(
+                unet,
+                text_encoder,
+                save_path,
+                placeholder_token_ids=None,
+                placeholder_tokens=None,
+                save_lora=True,
+                save_ti=False,
+                target_replace_module_text=TEXT_ENCODER_DEFAULT_TARGET_REPLACE,
+                target_replace_module_unet=UNET_DEFAULT_TARGET_REPLACE,
+                safe_form=True,
+            )
+        wandb.log(logs, step=global_step)
 
 def loss_step(
     batch,
