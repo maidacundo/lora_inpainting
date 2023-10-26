@@ -37,11 +37,11 @@ def train(config):
         tokenizer=tokenizer,
         label_mapping=label_mapping,
         global_caption=config.prompt.global_caption,
-        size=512,
+        size=config.dataset.image_size,
         h_flip=False,
         resize=True,
-        normalize=True,
-        scaling_pixels=4,
+        normalize=config.dataset.normalize_images,
+        scaling_pixels=config.dataset.scaling_pixels,
     )
 
     valid_dataset = InpaintLoraDataset(
@@ -49,11 +49,10 @@ def train(config):
         tokenizer=tokenizer,
         label_mapping=label_mapping,
         global_caption=config.prompt.global_caption,
-        size=512,
+        size=config.dataset.image_size,
         h_flip=False,
         resize=True,
         normalize=False,
-        scaling_pixels=4,
     )
 
     train_dataloader = InpaintingDataLoader(
@@ -209,20 +208,21 @@ def train(config):
                 # evaluate the unet
                 unet.eval()
                 text_encoder.eval()
-                for batch in valid_dataloader:
-                    with torch.no_grad():
-                        val_loss = loss_step(
-                            batch,
-                            unet,
-                            vae,
-                            text_encoder,
-                            noise_scheduler,
-                            t_mutliplier=0.8,
-                            mixed_precision=True,
-                            mask_temperature=config.train.mask_temperature,
-                        )
-                        loss_sum += val_loss.detach().item()
-                logs['val_loss'] = loss_sum / len(valid_dataloader)
+                for _ in range(config.eval.eval_epochs):
+                    for batch in valid_dataloader:
+                        with torch.no_grad():
+                            val_loss = loss_step(
+                                batch,
+                                unet,
+                                vae,
+                                text_encoder,
+                                noise_scheduler,
+                                t_mutliplier=0.8,
+                                mixed_precision=True,
+                                mask_temperature=config.train.mask_temperature,
+                            )
+                            loss_sum += val_loss.detach().item()
+                logs['val_loss'] = loss_sum / (len(valid_dataloader) * config.eval.eval_epochs)
                 loss_sum = 0.0
 
                 wandb.log(logs)
