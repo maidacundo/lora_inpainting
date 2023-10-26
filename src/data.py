@@ -25,6 +25,7 @@ class InpaintLoraDataset(Dataset):
         global_caption: Optional[str] = None,
         token_map: Optional[dict] = None,
         size=512,
+        max_size=628,
         h_flip=True,
         resize=True,
         normalize=True,
@@ -33,6 +34,7 @@ class InpaintLoraDataset(Dataset):
         labels_filter: Optional[list]=None,
     ):
         self.size = size
+        self.max_size = max_size
         self.tokenizer = tokenizer
         self.resize = resize
         self.train_inpainting = train_inpainting
@@ -57,7 +59,9 @@ class InpaintLoraDataset(Dataset):
             [
                 transforms.ToPILImage(),
                 transforms.Resize(
-                    size, interpolation=transforms.InterpolationMode.BILINEAR
+                    size, 
+                    interpolation=transforms.InterpolationMode.BILINEAR,
+                    max_size=max_size,
                 )
                 if resize
                 else transforms.Lambda(lambda x: x),
@@ -72,7 +76,9 @@ class InpaintLoraDataset(Dataset):
             [
                 transforms.ToPILImage(),
                 transforms.Resize(
-                    size, interpolation=transforms.InterpolationMode.BILINEAR
+                    size, 
+                    interpolation=transforms.InterpolationMode.BILINEAR,
+                    max_size=max_size,
                 )
                 if resize
                 else transforms.Lambda(lambda x: x),
