@@ -1,3 +1,4 @@
+from matplotlib.pyplot import step
 import torch
 from diffusers import (
     StableDiffusionInpaintPipeline
@@ -55,4 +56,4 @@ def evaluate_pipe(
                     generations.append(image)
 
             images_log[prompt] = generations
-    wandb.log({f"validation images": images_log})
+    return images_log
