@@ -1,5 +1,4 @@
 from torch.utils.data import Dataset
-from torchvision import transforms
 from PIL import Image
 import random
 from pathlib import Path
@@ -8,8 +7,16 @@ from roboflow import Roboflow
 import os
 import torch
 from torch.utils.data import DataLoader
+from torchvision.transforms import v2 as transforms
+from torchvision.transforms.v2 import functional as TF
 
-from .utils import mask_images, create_dataset
+import numpy as np
+import cv2
+
+from .utils import parse_labels, scale_polygons, generate_masks
+
+
+from .utils import mask_image, get_images_and_labels_paths
 
 class InpaintLoraDataset(Dataset):
     """
@@ -23,98 +30,117 @@ class InpaintLoraDataset(Dataset):
         tokenizer,
         label_mapping: dict,
         global_caption: Optional[str] = None,
-        token_map: Optional[dict] = None,
         size=512,
         max_size=628,
-        h_flip=True,
         resize=True,
         normalize=True,
         scaling_pixels: int = 0,
-        train_inpainting: bool = True,
         labels_filter: Optional[list]=None,
     ):
         self.size = size
         self.max_size = max_size
         self.tokenizer = tokenizer
         self.resize = resize
-        self.train_inpainting = train_inpainting
 
         if not Path(instance_data_root).exists():
             raise ValueError("Instance images root doesn't exists.")
-        img_path = os.path.join(instance_data_root, "images")
-        label_path = os.path.join(instance_data_root, "labels")
 
         # Prepare the instance images and masks
-        self.imgs, self.masks, self.labels = create_dataset(img_path, label_path, num_samples=None, scaling_pixels=scaling_pixels, labels_filter=labels_filter)
+        self.imgs, self.labels = get_images_and_labels_paths(instance_data_root)
         self.label_mapping = label_mapping
 
         self.global_caption = global_caption
 
-        self.token_map = token_map
-
         self._length = len(self.imgs)
 
-        self.h_flip = h_flip
+        self.normalize = normalize
+        self.scaling_pixels = scaling_pixels
+        self.labels_filter = labels_filter # TODO implement labels filter
+
+        self.mean, self.std = self.calculate_mean_std()
+
         self.image_transforms = transforms.Compose(
             [
-                transforms.ToPILImage(),
-                transforms.Resize(
-                    size, 
-                    interpolation=transforms.InterpolationMode.BILINEAR,
-                    max_size=max_size,
-                )
-                if resize
-                else transforms.Lambda(lambda x: x),
-                transforms.CenterCrop(size),
+                transforms.Resize(size=self.size),
                 transforms.ToTensor(),
-                transforms.Normalize([0.5], [0.5])
-                if normalize
+                transforms.Normalize(mean=self.mean, std=self.std)
+                if self.normalize
                 else transforms.Lambda(lambda x: x),
-            ]
-        )
-        self.mask_transforms = transforms.Compose(
-            [
-                transforms.ToPILImage(),
-                transforms.Resize(
-                    size, 
-                    interpolation=transforms.InterpolationMode.BILINEAR,
-                    max_size=max_size,
-                )
-                if resize
-                else transforms.Lambda(lambda x: x),
-                transforms.CenterCrop(size),
-                transforms.PILToTensor()
             ]
         )
 
+        self.mask_transforms = transforms.Compose(
+            [
+                transforms.Resize(size=self.size),
+                transforms.ToTensor(),
+            ]
+        )
+
+    def calculate_mean_std(self):
+        means = []
+        stds = []
+
+        for img in self.imgs:
+            # calculate the mean and std of all the images
+            img = cv2.imread(img, cv2.IMREAD_COLOR)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img = img / 255.0
+            mean = np.mean(img, axis=(0, 1))
+            std = np.std(img, axis=(0, 1))
+            means.append(mean)
+            stds.append(std)
+
+        mean = np.mean(means, axis=0)
+        std = np.mean(stds, axis=0)
+
+        return mean, std
+
+    def transform(self, image, mask):
+
+        image = self.image_transforms(image)
+        mask = self.mask_transforms(mask)
+
+        while True:
+
+            # Random crop
+            i, j, h, w = transforms.RandomCrop.get_params(
+                image, output_size=(512, 512))
+            image = TF.crop(image, i, j, h, w)
+            mask = TF.crop(mask, i, j, h, w)
+
+            # Check if the mask contains at least one non-zero value
+            if torch.sum(mask) > 0:
+                break
+
+        # Random horizontal flipping
+        if random.random() > 0.5:
+            image = TF.hflip(image)
+            mask = TF.hflip(mask)
+
+        return image, mask
+    
+    
     def __len__(self):
         return self._length
 
     def __getitem__(self, index):
         example = {}
-        label = self.labels[index]
 
-        if self.train_inpainting:
-            example["instance_masks"] = self.masks[index]
-            example["instance_masked_images"] = mask_images(self.imgs[index], example["instance_masks"], invert=True)
-            example["instance_masked_values"] = mask_images(self.imgs[index], example["instance_masks"], invert=False)
+        image = Image.open(self.imgs[index])
+        polygons = parse_labels(self.labels[index])
+        scaled_polygons = scale_polygons(polygons, image.size)
+        mask, label = generate_masks(scaled_polygons, image.size)
+        image, mask = self.transform(image, mask)
 
-        example["instance_images"] = self.image_transforms(self.imgs[index])
-        example["instance_masked_images"] = self.image_transforms(example["instance_masked_images"])
-        example["instance_masked_values"] = self.image_transforms(example["instance_masked_values"])
-        example["instance_masks"] = self.mask_transforms(example["instance_masks"])
+
+        example["instance_images"] = image
+        example["instance_masks"] = mask
+        example["instance_masked_images"] = mask_image(image, example["instance_masks"], invert=True)
+        example["instance_masked_values"] = mask_image(image, example["instance_masks"], invert=False)
 
         text = self.label_mapping[label]
         if self.global_caption:
             text += ', ' + self.global_caption.strip()
-
-        if self.h_flip and random.random() > 0.5:
-            hflip = transforms.RandomHorizontalFlip(p=1)
-
-            example["instance_images"] = hflip(example["instance_images"])
-            example["instance_masked_images"] = hflip(example["instance_masked_images"])
-            example["instance_masked_values"] = hflip(example["instance_masked_values"])
-            example["instance_masks"] = hflip(example["instance_masks"])
 
         example["instance_prompt_ids"] = self.tokenizer(
             text,

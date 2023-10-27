@@ -38,8 +38,6 @@ def train(config):
         label_mapping=label_mapping,
         global_caption=config.prompt.global_caption,
         size=config.dataset.image_size,
-        max_size=config.dataset.max_image_size,
-        h_flip=False,
         resize=True,
         normalize=config.dataset.normalize_images,
         scaling_pixels=config.dataset.scaling_pixels,
@@ -51,8 +49,6 @@ def train(config):
         label_mapping=label_mapping,
         global_caption=config.prompt.global_caption,
         size=config.dataset.image_size,
-        max_size=config.dataset.max_image_size,
-        h_flip=False,
         resize=True,
         normalize=False,
     )
@@ -255,6 +251,7 @@ def train(config):
                 safe_form=True,
             )
         wandb.log(logs, step=global_step)
+    wandb.finish()
 
 def loss_step(
     batch,

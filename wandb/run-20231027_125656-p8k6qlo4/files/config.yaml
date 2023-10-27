@@ -1,0 +1,177 @@
+wandb_version: 1
+
+_fields:
+  desc: null
+  value:
+    seed: 2808
+    logdir: logs
+    device: cuda
+    dataset: 'data_root: data
+
+      dataset_version: 3
+
+      image_size: 512
+
+      max_image_size: 512
+
+      normalize_images: true
+
+      project_name: kvist_windows
+
+      roboflow_api_key: HNXIsW3WwnidNDQZHexX
+
+      roboflow_workspace: arked
+
+      scaling_pixels: 4
+
+      '
+    prompt: 'global_caption: null
+
+      negative_caption: ugly, blurry, poor quality
+
+      '
+    model: 'model_path: C:\Users\Facundo\.cache\huggingface\hub\models--SG161222--Realistic_Vision_V5.1_noVAE\snapshots\9cd4afd23ecbf0348e2c46f4ac712dbf032da73c\Realistic_Vision_V5.1-inpainting.safetensors
+
+      vae_path: C:\Users\Facundo\.cache\huggingface\hub\models--stabilityai--sd-vae-ft-mse-original\snapshots\629b3ad3030ce36e15e70c5db7d91df0d60c627f\vae-ft-mse-840000-ema-pruned.safetensors
+
+      '
+    train: 'adam_beta1: 0.9
+
+      adam_beta2: 0.999
+
+      adam_epsilon: 1.0e-08
+
+      adam_weight_decay: 0.0001
+
+      checkpoint_folder: checkpoints
+
+      clip_gradients: true
+
+      clip_gradients_max_norm: 1.0
+
+      eval_batch_size: 1
+
+      eval_every_n_epochs: 5
+
+      gradient_accumulation_steps: 1
+
+      gradient_checkpointing: false
+
+      learning_rate: 0.0001
+
+      lora_dropout_p: 0.1
+
+      lora_rank: 8
+
+      lora_scale: 1.0
+
+      mask_temperature: 1.0
+
+      mixed_precision: ''no''
+
+      num_checkpoint_limit: 5
+
+      num_train_timesteps: 50
+
+      scheduler_num_cycles: 2
+
+      scheduler_type: cosine_with_restarts
+
+      scheduler_warmup_steps: 500
+
+      text_encoder_lr: 0.0002
+
+      total_steps: 4000
+
+      train_batch_size: 2
+
+      train_text_encoder: true
+
+      train_unet: true
+
+      unet_lr: 0.0002
+
+      use_scheduler: true
+
+      use_xformers: true
+
+      '
+    eval: 'eval_epochs: 10
+
+      num_eval_steps: 20
+
+      prompts:
+
+      - ''''
+
+      strengths:
+
+      - 1.0
+
+      use_validation: true
+
+      '
+    log_wandb: true
+    wandb: 'entity_name: arked
+
+      project_name: ''''
+
+      run_name: null
+
+      tags:
+
+      - lora
+
+      '
+_locked:
+  desc: null
+  value: false
+_type_safe:
+  desc: null
+  value: true
+_convert_dict:
+  desc: null
+  value: true
+_wandb:
+  desc: null
+  value:
+    python_version: 3.10.6
+    cli_version: 0.15.0
+    framework: huggingface
+    huggingface_version: 4.30.2
+    is_jupyter_run: true
+    is_kaggle_kernel: false
+    start_time: 1698404216.031896
+    t:
+      1:
+      - 1
+      - 2
+      - 3
+      - 11
+      - 41
+      - 49
+      - 55
+      - 71
+      - 83
+      2:
+      - 1
+      - 2
+      - 3
+      - 11
+      - 41
+      - 49
+      - 55
+      - 71
+      - 83
+      3:
+      - 1
+      - 15
+      - 16
+      - 23
+      4: 3.10.6
+      5: 0.15.0
+      6: 4.30.2
+      8:
+      - 1
+      - 3
+      - 5
