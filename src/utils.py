@@ -83,7 +83,6 @@ def scale_polygons(polygons, image_size):
 
     return scaled_polygons
 
-
 def enlarge_mask(mask, scaling_pixels=1):
     enlarged_mask = mask.copy()
 
@@ -104,7 +103,10 @@ def enlarge_mask(mask, scaling_pixels=1):
 
 # generate mask from polygons
 def generate_masks(polygons, image_size, num_samples=None, scaling_pixels=None, labels_filter=None):
-    mask = np.zeros(image_size, dtype=np.uint8)
+
+    w, h = image_size
+
+    mask = np.zeros((h, w), dtype=np.uint8)
     i=0
     class_id = None
     for class_id, polygon in polygons:
@@ -114,13 +116,13 @@ def generate_masks(polygons, image_size, num_samples=None, scaling_pixels=None, 
             path_polygon = path.Path(list(zip(x, y)))
 
             # Generate a mask for the polygon
-            x, y = np.meshgrid(np.arange(image_size[0]), np.arange(image_size[1]))
+            x, y = np.meshgrid(np.arange(w), np.arange(h))
             x, y = x.flatten(), y.flatten()
             points = np.vstack((x, y)).T
-            mask_indices = path_polygon.contains_points(points).reshape(image_size[0], image_size[1])
+            mask_indices = path_polygon.contains_points(points).reshape(h, w)
             # Fill the polygon in the mask
             mask[mask_indices] = 1
-
+            
             i+=1
             if num_samples and (i == num_samples):
                 break
@@ -165,15 +167,32 @@ def create_dataset(image_paths, label_paths, num_samples=None, resize_shape=None
 
     return np.array(images), np.array(masks), np.array(labels)
 
-# mask the images with the masks
-def mask_images(images, masks, invert=False):
-    masked_images = []
-    for img, mask in zip(images, masks):
-        if invert:
-            masked_images.append(img * (1 - mask[..., np.newaxis]))
+def get_images_and_labels_paths(instance_data_root):
+    img_path = os.path.join(instance_data_root, "images")
+    label_path = os.path.join(instance_data_root, "labels")
+    images = []
+    masks = []
+
+    # list of all the images in the image folder
+    images_names = os.listdir(img_path)
+    label_names = [image_name.replace(".jpg", ".txt") for image_name in images_names]
+    for img_name, label_name in zip(images_names, label_names):
+        if (label_name not in os.listdir(label_path)):
+            images_names.remove(img_name)
+            label_names.remove(label_name)
         else:
-            masked_images.append(img * mask[..., np.newaxis])
-    return np.array(masked_images)
+            images.append(os.path.join(img_path, img_name))
+            masks.append(os.path.join(label_path, label_name))
+
+    return images, masks
+
+# mask the images with the masks
+def mask_image(image, mask, invert=False):
+    if invert:
+        return image * (1 - mask)
+    else:
+        return image * mask
+
 
 def get_label_mapping(data_yaml):
     with open(data_yaml, 'r') as file:
@@ -184,3 +203,4 @@ def get_label_mapping(data_yaml):
         label_mapping[i] = label
 
     return label_mapping
+

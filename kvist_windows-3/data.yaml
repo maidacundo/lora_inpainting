@@ -1,0 +1,12 @@
+names:
+- kvist windows
+nc: 1
+roboflow:
+  license: Public Domain
+  project: kvist_windows
+  url: https://universe.roboflow.com/arked/kvist_windows/dataset/3
+  version: 3
+  workspace: arked
+test: ../test/images
+train: kvist_windows-3/train/images
+val: kvist_windows-3/valid/images
