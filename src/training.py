@@ -16,9 +16,10 @@ from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_da
 from .model import get_models
 from .lora import inject_trainable_lora, UNET_DEFAULT_TARGET_REPLACE, TEXT_ENCODER_DEFAULT_TARGET_REPLACE, save_all
 from .evaluate import evaluate_pipe
+from .config import Config
 
 
-def train(config):
+def train(config: Config):
     download_roboflow_dataset(config)
     set_random_seed(config.seed)
 
@@ -100,7 +101,7 @@ def train(config):
     if config.train.train_unet:
         unet_lora_params, unet_lora_params_names = inject_trainable_lora(
             unet,
-            r=config.train.lora_rank,
+            r=config.lora.rank,
             target_replace_module=UNET_DEFAULT_TARGET_REPLACE,
             dropout_p=config.train.lora_dropout_p,
             scale=config.train.lora_scale,
@@ -116,10 +117,10 @@ def train(config):
     if config.train.train_text_encoder:
         text_encoder_lora_params, text_encoder_lora_params_names = inject_trainable_lora(
             text_encoder,
-            r=config.train.lora_rank,
+            r=config.lora.rank,
             target_replace_module=TEXT_ENCODER_DEFAULT_TARGET_REPLACE,
-            dropout_p=config.train.lora_dropout_p,
-            scale=config.train.lora_scale,
+            dropout_p=config.lora.dropout_p,
+            scale=config.lora.scale,
         )
 
         params_to_optimize += [
@@ -133,6 +134,7 @@ def train(config):
         params_to_optimize,
         lr=config.train.learning_rate,
         weight_decay=config.train.adam_weight_decay,
+        eps=config.traing.adam_epsilon,
     )
 
     if config.train.train_unet:
@@ -143,6 +145,7 @@ def train(config):
 
     unet_params_num = sum(p.numel() for p in unet.parameters() if p.requires_grad) 
     text_encoder_params_num = sum(p.numel() for p in text_encoder.parameters() if p.requires_grad)
+    
     print('Unet LoRA params:', unet_params_num)
     print('CLIP LoRA params:', text_encoder_params_num)
 
