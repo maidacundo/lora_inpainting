@@ -62,7 +62,8 @@ class InpaintLoraDataset(Dataset):
         self.image_transforms = transforms.Compose(
             [
                 transforms.Resize(size=self.size),
-                transforms.ToTensor(),
+                transforms.ToImageTensor(), 
+                transforms.ConvertImageDtype(torch.float32),
                 transforms.Normalize(mean=self.mean, std=self.std)
                 if self.normalize
                 else transforms.Lambda(lambda x: x),
@@ -72,7 +73,7 @@ class InpaintLoraDataset(Dataset):
         self.mask_transforms = transforms.Compose(
             [
                 transforms.Resize(size=self.size),
-                transforms.ToTensor(),
+                transforms.PILToTensor(),
             ]
         )
 
@@ -96,6 +97,8 @@ class InpaintLoraDataset(Dataset):
         return mean, std
 
     def transform(self, image, mask):
+        
+        mask = torch.from_numpy(mask).unsqueeze(0)
 
         image = self.image_transforms(image)
         mask = self.mask_transforms(mask)

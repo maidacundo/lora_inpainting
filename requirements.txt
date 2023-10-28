@@ -1,7 +1,6 @@
-roboflow 
+roboflow
 diffusers 
 transformers 
 wandb 
 omegaconf
 ml-collections
-xformers
