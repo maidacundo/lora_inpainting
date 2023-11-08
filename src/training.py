@@ -39,7 +39,6 @@ def train(config: Config):
         label_mapping=label_mapping,
         global_caption=config.prompt.global_caption,
         size=config.dataset.image_size,
-        resize=True,
         normalize=config.dataset.normalize_images,
         scaling_pixels=config.dataset.scaling_pixels,
     )
@@ -50,7 +49,6 @@ def train(config: Config):
         label_mapping=label_mapping,
         global_caption=config.prompt.global_caption,
         size=config.dataset.image_size,
-        resize=True,
         normalize=False,
     )
 
@@ -103,8 +101,8 @@ def train(config: Config):
             unet,
             r=config.lora.rank,
             target_replace_module=UNET_DEFAULT_TARGET_REPLACE,
-            dropout_p=config.train.lora_dropout_p,
-            scale=config.train.lora_scale,
+            dropout_p=config.lora.dropout_p,
+            scale=config.lora.scale,
         )
 
         params_to_optimize = [
@@ -133,8 +131,7 @@ def train(config: Config):
     optimizer_lora = optim.AdamW(
         params_to_optimize,
         lr=config.train.learning_rate,
-        weight_decay=config.train.adam_weight_decay,
-        eps=config.traing.adam_epsilon,
+        weight_decay=config.train.weight_decay,
     )
 
     if config.train.train_unet:
@@ -143,7 +140,7 @@ def train(config: Config):
     if config.train.train_text_encoder:
         text_encoder.train()
 
-    unet_params_num = sum(p.numel() for p in unet.parameters() if p.requires_grad) 
+    unet_params_num = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     text_encoder_params_num = sum(p.numel() for p in text_encoder.parameters() if p.requires_grad)
     
     print('Unet LoRA params:', unet_params_num)
@@ -248,6 +245,8 @@ def train(config: Config):
                 placeholder_token_ids=None,
                 placeholder_tokens=None,
                 save_lora=True,
+                save_unet=config.train.train_unet,
+                save_text_encoder=config.train.train_text_encoder,
                 save_ti=False,
                 target_replace_module_text=TEXT_ENCODER_DEFAULT_TARGET_REPLACE,
                 target_replace_module_unet=UNET_DEFAULT_TARGET_REPLACE,
