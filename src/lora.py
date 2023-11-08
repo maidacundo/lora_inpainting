@@ -1032,6 +1032,8 @@ def save_all(
     placeholder_token_ids=None,
     placeholder_tokens=None,
     save_lora=True,
+    save_unet=True,
+    save_text_encoder=True,
     save_ti=True,
     target_replace_module_text=TEXT_ENCODER_DEFAULT_TARGET_REPLACE,
     target_replace_module_unet=DEFAULT_TARGET_REPLACE,
@@ -1077,11 +1079,14 @@ def save_all(
         embeds = {}
 
         if save_lora:
-            loras["unet"] = (unet, target_replace_module_unet)
-            loras["text_encoder"] = (
-                text_encoder,
-                target_replace_module_text,
-            )
+            if save_unet:
+                loras["unet"] = (unet, target_replace_module_unet)
+            
+            if save_text_encoder:
+                loras["text_encoder"] = (
+                    text_encoder,
+                    target_replace_module_text,
+                )
 
         if save_ti:
             for tok, tok_id in zip(placeholder_tokens, placeholder_token_ids):

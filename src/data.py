@@ -32,15 +32,15 @@ class InpaintLoraDataset(Dataset):
         global_caption: Optional[str] = None,
         size=512,
         max_size=628,
-        resize=True,
         normalize=True,
+        augmentation=True,
         scaling_pixels: int = 0,
         labels_filter: Optional[list]=None,
     ):
         self.size = size
         self.max_size = max_size
         self.tokenizer = tokenizer
-        self.resize = resize
+        self.augmentation = augmentation
 
         if not Path(instance_data_root).exists():
             raise ValueError("Instance images root doesn't exists.")
@@ -103,22 +103,23 @@ class InpaintLoraDataset(Dataset):
         image = self.image_transforms(image)
         mask = self.mask_transforms(mask)
 
-        while True:
+        if self.augmentation:
 
-            # Random crop
-            i, j, h, w = transforms.RandomCrop.get_params(
-                image, output_size=(512, 512))
-            image = TF.crop(image, i, j, h, w)
-            mask = TF.crop(mask, i, j, h, w)
+            while True:
+                # Random crop
+                i, j, h, w = transforms.RandomCrop.get_params(
+                    image, output_size=(512, 512))
+                image = TF.crop(image, i, j, h, w)
+                mask = TF.crop(mask, i, j, h, w)
 
-            # Check if the mask contains at least one non-zero value
-            if torch.sum(mask) > 0:
-                break
+                # Check if the mask contains at least one non-zero value
+                if torch.sum(mask) > 0:
+                    break
 
-        # Random horizontal flipping
-        if random.random() > 0.5:
-            image = TF.hflip(image)
-            mask = TF.hflip(mask)
+            # Random horizontal flipping
+            if random.random() > 0.5:
+                image = TF.hflip(image)
+                mask = TF.hflip(mask)
 
         return image, mask
     
@@ -132,7 +133,11 @@ class InpaintLoraDataset(Dataset):
         image = Image.open(self.imgs[index])
         polygons = parse_labels(self.labels[index])
         scaled_polygons = scale_polygons(polygons, image.size)
-        mask, label = generate_masks(scaled_polygons, image.size)
+        mask, label = generate_masks(
+            scaled_polygons, 
+            image.size, 
+            scaling_pixels=self.scaling_pixels
+        )
         image, mask = self.transform(image, mask)
 
 
