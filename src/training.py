@@ -237,7 +237,7 @@ def train(config: Config):
                     config,
                 )
                 wandb.log(images_log, step=global_step)
-            save_path = os.path.join(config.train.checkpoint_folder, f'lora_{epoch}.safetensors')
+            save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{epoch}.safetensors')
             save_all(
                 unet,
                 text_encoder,
