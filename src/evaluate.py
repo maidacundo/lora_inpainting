@@ -27,11 +27,11 @@ def evaluate_pipe(
                     safety_checker=None,
                     feature_extractor=None,
                 )
+        images_log = {}
         for prompt in config.eval.prompts:
             
             if config.prompt.global_caption:
                 prompt += ', ' + config.prompt.global_caption
-            images_log = {}
             
             for strength in config.eval.strengths:
                 generations = []

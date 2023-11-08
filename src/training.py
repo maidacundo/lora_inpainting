@@ -50,6 +50,7 @@ def train(config: Config):
         global_caption=config.prompt.global_caption,
         size=config.dataset.image_size,
         normalize=False,
+        augmentation=False,
     )
 
     train_dataloader = InpaintingDataLoader(
