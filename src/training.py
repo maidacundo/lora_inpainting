@@ -10,11 +10,11 @@ import torch.optim as optim
 import torch.utils.checkpoint
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.optimization import get_scheduler
+from peft import LoraConfig, LoraModel
 
-from .utils import set_random_seed, get_label_mapping
+from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras
 from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset
 from .model import get_models
-from .lora import inject_trainable_lora, UNET_DEFAULT_TARGET_REPLACE, TEXT_ENCODER_DEFAULT_TARGET_REPLACE, save_all
 from .evaluate import evaluate_pipe
 from .config import Config
 
@@ -66,7 +66,6 @@ def train(config: Config):
         device=config.device,
     )
 
-
     # Freeze all weights
     unet.requires_grad_(False)
     vae.requires_grad_(False)
@@ -98,33 +97,39 @@ def train(config: Config):
         wandb.watch(text_encoder)
 
     if config.train.train_unet:
-        unet_lora_params, unet_lora_params_names = inject_trainable_lora(
-            unet,
+        unet_peft = LoraConfig(
             r=config.lora.rank,
-            target_replace_module=UNET_DEFAULT_TARGET_REPLACE,
-            dropout_p=config.lora.dropout_p,
-            scale=config.lora.scale,
+            lora_alpha=config.lora.alpha,
+            target_modules=config.lora.unet_target_modules,
+            lora_dropout=0.1,
+            bias='none',
         )
+
+        unet = LoraModel(unet, unet_peft, "unet_lora")
+        print_trainable_parameters(unet, "unet")
 
         params_to_optimize = [
             {
-                "params": itertools.chain(*unet_lora_params), 
-                "lr": config.train.unet_lr
+                "params": itertools.chain(*[p for p in unet.parameters() if p.requires_grad]),
+                "lr": config.train.unet_lr,
             },
         ]
 
     if config.train.train_text_encoder:
-        text_encoder_lora_params, text_encoder_lora_params_names = inject_trainable_lora(
-            text_encoder,
+        text_encoder_peft = LoraConfig(
             r=config.lora.rank,
-            target_replace_module=TEXT_ENCODER_DEFAULT_TARGET_REPLACE,
-            dropout_p=config.lora.dropout_p,
-            scale=config.lora.scale,
+            lora_alpha=config.lora.alpha,
+            target_modules=config.lora.text_encoder_target_modules,
+            lora_dropout=0.1,
+            bias='none',
         )
+
+        text_encoder = LoraModel(text_encoder, text_encoder_peft, "text_encoder_lora")
+        print_trainable_parameters(text_encoder, "text_encoder")
 
         params_to_optimize += [
             {
-                "params": itertools.chain(*text_encoder_lora_params),
+                "params": itertools.chain(*[p for p in text_encoder.parameters() if p.requires_grad]),
                 "lr": config.train.text_encoder_lr,
             }
         ]
@@ -140,12 +145,6 @@ def train(config: Config):
         
     if config.train.train_text_encoder:
         text_encoder.train()
-
-    unet_params_num = sum(p.numel() for p in unet.parameters() if p.requires_grad)
-    text_encoder_params_num = sum(p.numel() for p in text_encoder.parameters() if p.requires_grad)
-    
-    print('Unet LoRA params:', unet_params_num)
-    print('CLIP LoRA params:', text_encoder_params_num)
 
     lr_scheduler_lora = get_scheduler(
         config.train.scheduler_type,
@@ -239,20 +238,7 @@ def train(config: Config):
                 )
                 wandb.log(images_log, step=global_step)
             save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{epoch}.safetensors')
-            save_all(
-                unet,
-                text_encoder,
-                save_path,
-                placeholder_token_ids=None,
-                placeholder_tokens=None,
-                save_lora=True,
-                save_unet=config.train.train_unet,
-                save_text_encoder=config.train.train_text_encoder,
-                save_ti=False,
-                target_replace_module_text=TEXT_ENCODER_DEFAULT_TARGET_REPLACE,
-                target_replace_module_unet=UNET_DEFAULT_TARGET_REPLACE,
-                safe_form=True,
-            )
+            save_loras(unet, text_encoder, save_path, config)
         wandb.log(logs, step=global_step)
     wandb.finish()
 

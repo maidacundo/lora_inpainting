@@ -25,8 +25,19 @@ class ModelConfig:
 @dataclass
 class LoraConfig:
     rank: int = 8
-    scale: float = 1.0
+    alpha: float = 32.0
     dropout_p: float = 0.1
+    unet_adapter_name = 'lora_te'
+    text_encoder_adapter_name = 'lora_unet'
+    # "to_q", "to_v", "to_k", "to_out.0" are the names of the modules in attention layers
+    # "ff.net.0.proj" is the name of the linear in the GEGLU activation
+    # "proj_in", "conv1", "conv2" are the names of the modules in the resnet block
+    # TODO understand better the role of each module and if it is needed to add more
+    unet_target_modules = ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"] #, "proj_in", "conv1", "conv2"]
+
+    # "q_proj", "v_proj", "k_proj", "out_proj" are the names of the modules in the text encoder attention layers
+    # "mlp.fc1", "mlp.fc2" are the names of the modules in the text encoder mlp that produce the embeddings
+    text_encoder_target_moduler = ["q_proj", "v_proj", "k_proj", "out_proj", "mlp.fc1", "mlp.fc2"]
 
 @dataclass
 class TrainConfig:

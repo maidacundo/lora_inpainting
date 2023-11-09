@@ -1,6 +1,7 @@
 roboflow
 diffusers 
-transformers 
+transformers
+peft
 wandb 
 omegaconf
 ml-collections

@@ -19,6 +19,9 @@ import numpy as np
 import os
 import cv2
 import yaml
+from peft import get_peft_model_state_dict
+from safetensors import safe_save
+
 
 # Function to parse the text label and extract polygon information
 def parse_labels(label_file):
@@ -203,4 +206,61 @@ def get_label_mapping(data_yaml):
         label_mapping[i] = label
 
     return label_mapping
+
+def print_trainable_parameters(model, model_name):
+    """
+    Prints the number of trainable parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    print(f"Model: {model_name}")
+    print(
+        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
+    )
+
+def get_module_kohya_state_dict(
+    state_dict, 
+    prefix: str, 
+    lora_alpha: int,
+    dtype: torch.dtype = torch.float32, 
+):
+    kohya_ss_state_dict = {}
+    for peft_key, weight in state_dict.items():
+        kohya_key = peft_key.replace("model", prefix, 1)
+        kohya_key = kohya_key.replace("lora_A", "lora_down")
+        kohya_key = kohya_key.replace("lora_B", "lora_up")
+        kohya_key = kohya_key.replace(".", "_", kohya_key.count(".") - 2)
+        kohya_ss_state_dict[kohya_key] = weight.to(dtype)
+
+        # Set alpha parameter
+        if "lora_down" in kohya_key:
+            alpha_key = f'{kohya_key.split(".")[0]}.alpha'
+            kohya_ss_state_dict[alpha_key] = torch.tensor(lora_alpha).to(dtype)
+
+    return kohya_ss_state_dict
+
+def save_loras(
+    unet = None,
+    text_encoder = None,
+    save_path = "./lora.safetensors",
+    config = None,
+):  
+    lora_alpha = config.lora.alpha
+    weights = {}
+    metadata = {}
+
+    if unet:
+        state_dict = get_peft_model_state_dict(unet, adapter_name=config.lora.unet_adapter_name)
+        state_dict = get_module_kohya_state_dict(state_dict, config.lora.unet_adapter_name, lora_alpha)
+        weights.update(state_dict)
+    if text_encoder:
+        state_dict = get_peft_model_state_dict(text_encoder, adapter_name=config.lora.text_encoder_adapter_name)
+        state_dict = get_module_kohya_state_dict(state_dict, config.lora.unet_adapter_name, lora_alpha)
+        weights.update(state_dict)
+    
+    safe_save(weights, save_path, metadata)
 
