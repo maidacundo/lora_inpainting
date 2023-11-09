@@ -27,6 +27,8 @@ def evaluate_pipe(
                     safety_checker=None,
                     feature_extractor=None,
                 )
+        pipe.set_progress_bar_config(disable=True)
+
         images_log = {}
         for prompt in config.eval.prompts:
             

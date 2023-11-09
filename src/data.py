@@ -13,10 +13,7 @@ from torchvision.transforms.v2 import functional as TF
 import numpy as np
 import cv2
 
-from .utils import parse_labels, scale_polygons, generate_masks
-
-
-from .utils import mask_image, get_images_and_labels_paths
+from .utils import parse_labels, scale_polygons, generate_masks, mask_image, get_images_and_labels_paths
 
 class InpaintLoraDataset(Dataset):
     """

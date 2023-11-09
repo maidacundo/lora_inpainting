@@ -105,12 +105,12 @@ def train(config: Config):
             bias='none',
         )
 
-        unet = LoraModel(unet, unet_peft, "unet_lora")
+        unet = LoraModel(unet, unet_peft, config.lora.unet_adapter_name)
         print_trainable_parameters(unet, "unet")
 
         params_to_optimize = [
             {
-                "params": itertools.chain(*[p for p in unet.parameters() if p.requires_grad]),
+                "params": itertools.chain(unet.parameters()),
                 "lr": config.train.unet_lr,
             },
         ]
@@ -124,12 +124,12 @@ def train(config: Config):
             bias='none',
         )
 
-        text_encoder = LoraModel(text_encoder, text_encoder_peft, "text_encoder_lora")
+        text_encoder = LoraModel(text_encoder, text_encoder_peft, config.lora.text_encoder_adapter_name)
         print_trainable_parameters(text_encoder, "text_encoder")
 
         params_to_optimize += [
             {
-                "params": itertools.chain(*[p for p in text_encoder.parameters() if p.requires_grad]),
+                "params": itertools.chain(text_encoder.parameters()),
                 "lr": config.train.text_encoder_lr,
             }
         ]
@@ -165,6 +165,11 @@ def train(config: Config):
     progress_bar.set_description("Steps")
     global_step = 0
 
+    if config.train.text_encoder_train_ratio < 1.0:
+        text_encoder_steps = math.ceil(config.train.total_steps * config.train.text_encoder_train_ratio)
+    else:
+        text_encoder_steps = config.train.total_steps
+
     for epoch in range(math.ceil(config.train.total_steps / len(train_dataloader))):
         for batch in train_dataloader:
             optimizer_lora.zero_grad()
@@ -195,6 +200,11 @@ def train(config: Config):
             }
             progress_bar.set_postfix(**logs)
             global_step += 1
+            if text_encoder_steps == global_step:
+                text_encoder.train(False)
+                unet.train(True)
+                print("Text encoder training finished")
+
 
         if config.log_wandb:
             logs = {
@@ -209,6 +219,11 @@ def train(config: Config):
             # evaluate the unet
             unet.eval()
             text_encoder.eval()
+
+            # set the number of timesteps to 20 for evaluation
+            num_train_timesteps = noise_scheduler.config.num_train_timesteps
+            noise_scheduler.config.num_train_timesteps = 20
+
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
@@ -218,11 +233,14 @@ def train(config: Config):
                             vae,
                             text_encoder,
                             noise_scheduler,
-                            t_mutliplier=0.8,
+                            t_mutliplier=1,
                             mixed_precision=True,
                             mask_temperature=config.train.mask_temperature,
                         )
                         loss_sum += val_loss.detach().item()
+
+            # reset the number of timesteps
+            noise_scheduler.config.num_train_timesteps = num_train_timesteps
 
             logs['val_loss'] = loss_sum / (len(valid_dataloader) * config.eval.eval_epochs)
             loss_sum = 0.0
@@ -238,7 +256,12 @@ def train(config: Config):
                 )
                 wandb.log(images_log, step=global_step)
             save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{epoch}.safetensors')
-            save_loras(unet, text_encoder, save_path, config)
+            save_loras(
+                unet if config.train.train_unet else None, 
+                text_encoder if config.train.train_text_encoder else None, 
+                save_path, 
+                config
+            )
         wandb.log(logs, step=global_step)
     wandb.finish()
 

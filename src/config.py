@@ -10,7 +10,7 @@ class DatasetConfig:
     image_size: int = 512
     max_image_size: int = 512
     normalize_images: bool = True
-    scaling_pixels: int = 4
+    scaling_pixels: int = 25
 
 @dataclass
 class PromptConfig:
@@ -27,8 +27,8 @@ class LoraConfig:
     rank: int = 8
     alpha: float = 32.0
     dropout_p: float = 0.1
-    unet_adapter_name = 'lora_te'
-    text_encoder_adapter_name = 'lora_unet'
+    unet_adapter_name = 'lora_unet'
+    text_encoder_adapter_name = 'lora_te' 
     # "to_q", "to_v", "to_k", "to_out.0" are the names of the modules in attention layers
     # "ff.net.0.proj" is the name of the linear in the GEGLU activation
     # "proj_in", "conv1", "conv2" are the names of the modules in the resnet block
@@ -37,7 +37,7 @@ class LoraConfig:
 
     # "q_proj", "v_proj", "k_proj", "out_proj" are the names of the modules in the text encoder attention layers
     # "mlp.fc1", "mlp.fc2" are the names of the modules in the text encoder mlp that produce the embeddings
-    text_encoder_target_moduler = ["q_proj", "v_proj", "k_proj", "out_proj", "mlp.fc1", "mlp.fc2"]
+    text_encoder_target_modules = ["q_proj", "v_proj", "k_proj", "out_proj", "mlp.fc1", "mlp.fc2"]
 
 @dataclass
 class TrainConfig:
@@ -45,11 +45,10 @@ class TrainConfig:
     eval_batch_size: int = 1
     train_unet: bool = True
     train_text_encoder: bool = True
-    text_encoder_train_ratio = 0.75 # TODO stop the training of the text encoder before the end of the unet one
+    text_encoder_train_ratio = 1
     unet_lr: float = 2e-4
     text_encoder_lr: float = 2e-4
     mask_temperature: float = 1.0
-    num_train_timesteps: int = 50  # TODO add the new scheduler
     eval_every_n_epochs: int = 5
     num_checkpoint_limit: int = 5 # TODO use this and delete the previous checkpoints (if needed, not sure its a good feature)
     mixed_precision: str = 'no'

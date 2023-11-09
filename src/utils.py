@@ -20,7 +20,7 @@ import os
 import cv2
 import yaml
 from peft import get_peft_model_state_dict
-from safetensors import safe_save
+from safetensors.torch import save_file
 
 
 # Function to parse the text label and extract polygon information
@@ -86,23 +86,38 @@ def scale_polygons(polygons, image_size):
 
     return scaled_polygons
 
-def enlarge_mask(mask, scaling_pixels=1):
-    enlarged_mask = mask.copy()
+def modify_mask(mask, scaling_pixels=1):
+    modified_mask = mask.copy()
 
-    for s in range(1, scaling_pixels+1):
-        # Create masks for shifting in all four directions
-        up_mask = np.roll(mask, s, axis=0)
-        down_mask = np.roll(mask, -s, axis=0)
-        left_mask = np.roll(mask, s, axis=1)
-        right_mask = np.roll(mask, -s, axis=1)
+    if scaling_pixels > 0:
+        for s in range(1, scaling_pixels+1):
+            # Create masks for shifting in all four directions
+            up_mask = np.roll(mask, s, axis=0)
+            down_mask = np.roll(mask, -s, axis=0)
+            left_mask = np.roll(mask, s, axis=1)
+            right_mask = np.roll(mask, -s, axis=1)
 
-        # Use logical OR to combine the shifted masks
-        enlarged_mask = np.logical_or(enlarged_mask, up_mask)
-        enlarged_mask = np.logical_or(enlarged_mask, down_mask)
-        enlarged_mask = np.logical_or(enlarged_mask, left_mask)
-        enlarged_mask = np.logical_or(enlarged_mask, right_mask)
+            # Use logical OR to combine the shifted masks
+            modified_mask = np.logical_or(modified_mask, up_mask)
+            modified_mask = np.logical_or(modified_mask, down_mask)
+            modified_mask = np.logical_or(modified_mask, left_mask)
+            modified_mask = np.logical_or(modified_mask, right_mask)
 
-    return enlarged_mask.astype(np.uint8)
+    elif scaling_pixels < 0:
+        for s in range(1, abs(scaling_pixels)+1):
+            # Create masks for shifting in all four directions
+            up_mask = np.roll(mask, -s, axis=0)
+            down_mask = np.roll(mask, s, axis=0)
+            left_mask = np.roll(mask, -s, axis=1)
+            right_mask = np.roll(mask, s, axis=1)
+
+            # Use logical AND to combine the shifted masks
+            modified_mask = np.logical_and(modified_mask, up_mask)
+            modified_mask = np.logical_and(modified_mask, down_mask)
+            modified_mask = np.logical_and(modified_mask, left_mask)
+            modified_mask = np.logical_and(modified_mask, right_mask)
+
+    return modified_mask.astype(np.uint8)
 
 # generate mask from polygons
 def generate_masks(polygons, image_size, num_samples=None, scaling_pixels=None, labels_filter=None):
@@ -131,7 +146,8 @@ def generate_masks(polygons, image_size, num_samples=None, scaling_pixels=None, 
                 break
 
     if scaling_pixels:
-        mask = enlarge_mask(mask, scaling_pixels)
+        scaling_pixels = random.randint(-scaling_pixels, scaling_pixels)
+        mask = modify_mask(mask, scaling_pixels)
 
     return mask, class_id
 
@@ -259,8 +275,8 @@ def save_loras(
         weights.update(state_dict)
     if text_encoder:
         state_dict = get_peft_model_state_dict(text_encoder, adapter_name=config.lora.text_encoder_adapter_name)
-        state_dict = get_module_kohya_state_dict(state_dict, config.lora.unet_adapter_name, lora_alpha)
+        state_dict = get_module_kohya_state_dict(state_dict, config.lora.text_encoder_adapter_name, lora_alpha)
         weights.update(state_dict)
     
-    safe_save(weights, save_path, metadata)
+    save_file(weights, save_path, metadata)
 
