@@ -31,14 +31,12 @@ class InpaintLoraDataset(Dataset):
         label_mapping: dict,
         global_caption: Optional[str] = None,
         size=512,
-        max_size=628,
         normalize=True,
         augmentation=True,
         scaling_pixels: int = 0,
         labels_filter: Optional[list]=None,
     ):
         self.size = size
-        self.max_size = max_size
         self.tokenizer = tokenizer
         self.augmentation = augmentation
 
@@ -108,13 +106,17 @@ class InpaintLoraDataset(Dataset):
             while True:
                 # Random crop
                 i, j, h, w = transforms.RandomCrop.get_params(
-                    image, output_size=(512, 512))
+                    image, output_size=(self.size, self.size))
                 image = TF.crop(image, i, j, h, w)
                 mask = TF.crop(mask, i, j, h, w)
 
                 # Check if the mask contains at least one non-zero value
+                # TODO find a bug in the mask generation
+                # because sometimes the mask is all zeros
+                # when the size is not 512 (e.g. 768)
                 if torch.sum(mask) > 0:
                     break
+
 
             # Random horizontal flipping
             if random.random() > 0.5:
