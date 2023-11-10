@@ -1,7 +1,5 @@
 from dataclasses import dataclass, field
 
-from training import train_perspective
-
 @dataclass
 class DatasetConfig:
     roboflow_api_key: str
@@ -68,7 +66,7 @@ class TrainConfig:
     clip_gradients_max_norm: float = 1.0
     use_xformers: bool = False
     checkpoint_folder: str = 'checkpoints'
-    
+
 @dataclass
 class EvaluationConfig:
     num_eval_steps: int = 20

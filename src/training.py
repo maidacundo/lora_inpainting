@@ -46,7 +46,6 @@ def train_perspective(config: Config):
         size=config.dataset.image_size,
         normalize=config.dataset.normalize_images,
         scaling_pixels=config.dataset.scaling_pixels,
-        to_tensor=False,
     )
 
     valid_dataset = InpaintLoraDataset(

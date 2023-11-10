@@ -32,7 +32,6 @@ class InpaintLoraDataset(Dataset):
         augmentation=True,
         scaling_pixels: int = 0,
         labels_filter: Optional[list] = None,
-        to_tensor: bool = True,
     ):
         self.size = size
         self.tokenizer = tokenizer
@@ -52,19 +51,14 @@ class InpaintLoraDataset(Dataset):
         self.normalize = normalize
         self.scaling_pixels = scaling_pixels
         self.labels_filter = labels_filter # TODO implement labels filter
-        self.to_tensor = to_tensor
-
+        
         self.mean, self.std = self.calculate_mean_std()
 
         self.image_transforms = transforms.Compose(
             [
                 transforms.Resize(size=self.size),
-                transforms.ToImageTensor()
-                if self.to_tensor
-                else transforms.Lambda(lambda x: x),
-                transforms.ConvertImageDtype(torch.float32)
-                if self.to_tensor
-                else transforms.Lambda(lambda x: x),
+                transforms.ToImageTensor(),
+                transforms.ConvertImageDtype(torch.float32),
                 transforms.Normalize(mean=self.mean, std=self.std)
                 if self.normalize
                 else transforms.Lambda(lambda x: x),
@@ -150,7 +144,7 @@ class InpaintLoraDataset(Dataset):
         example["instance_masks"] = mask
         example["instance_masked_images"] = mask_image(image, example["instance_masks"], invert=True)
         example["instance_masked_values"] = mask_image(image, example["instance_masks"], invert=False)
-
+        
         text = self.label_mapping[label]
         if self.global_caption:
             text += ', ' + self.global_caption.strip()
