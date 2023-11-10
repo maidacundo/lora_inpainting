@@ -41,7 +41,7 @@ class InpaintLoraDataset(Dataset):
             raise ValueError("Instance images root doesn't exists.")
 
         # Prepare the instance images and masks
-        self.imgs, self.labels = get_images_and_labels_paths(instance_data_root, labels_filter)
+        self.imgs, self.labels = get_images_and_labels_paths(instance_data_root)
         self.label_mapping = label_mapping
 
         self.global_caption = global_caption
