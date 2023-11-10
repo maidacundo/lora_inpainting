@@ -52,13 +52,14 @@ class InpaintLoraDataset(Dataset):
         self.normalize = normalize
         self.scaling_pixels = scaling_pixels
         self.labels_filter = labels_filter # TODO implement labels filter
+        self.to_tensor = to_tensor
 
         self.mean, self.std = self.calculate_mean_std()
 
         self.image_transforms = transforms.Compose(
             [
                 transforms.Resize(size=self.size),
-                transforms.ToImageTensor(), 
+                transforms.ToImageTensor()
                 if self.to_tensor
                 else transforms.Lambda(lambda x: x),
                 transforms.ConvertImageDtype(torch.float32)
