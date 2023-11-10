@@ -166,3 +166,6 @@ src/checkpoints/
 git_clone_runpod.txt
 data/
 wandb/
+testing_notebooks/images/*
+testing_notebooks/loras/*
+testing_notebooks/embeddings/*

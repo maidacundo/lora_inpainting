@@ -1,10 +1,14 @@
 from matplotlib.pyplot import step
+from numpy import dtype
 import torch
 from diffusers import (
-    StableDiffusionInpaintPipeline
+    StableDiffusionInpaintPipeline,
+    logging,
 )
 from typing import List
 import wandb
+
+logging.set_verbosity_error()
 
 def evaluate_pipe(
         vae,
@@ -26,6 +30,7 @@ def evaluate_pipe(
                     scheduler=noise_scheduler,
                     safety_checker=None,
                     feature_extractor=None,
+                    dtype=torch.float16,
                 )
         pipe.set_progress_bar_config(disable=True)
 

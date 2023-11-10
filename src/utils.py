@@ -196,14 +196,22 @@ def get_images_and_labels_paths(instance_data_root):
     images_names = os.listdir(img_path)
     label_names = [image_name.replace(".jpg", ".txt") for image_name in images_names]
     for img_name, label_name in zip(images_names, label_names):
-        if (label_name not in os.listdir(label_path)):
-            images_names.remove(img_name)
-            label_names.remove(label_name)
-        else:
+        if (label_name in os.listdir(label_path)):
             images.append(os.path.join(img_path, img_name))
             masks.append(os.path.join(label_path, label_name))
 
     return images, masks
+
+def filter_images_and_labels_paths(images, labels, labels_filter):
+    filtered_images = []
+    filtered_labels = []
+    for image, label in zip(images, labels):
+        polygons = parse_labels(label)
+        if label in labels_filter:
+            filtered_images.append(image)
+            filtered_labels.append(label)
+
+    return filtered_images, filtered_labels
 
 # mask the images with the masks
 def mask_image(image, mask, invert=False):
