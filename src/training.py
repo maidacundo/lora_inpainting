@@ -17,7 +17,7 @@ from peft import LoraConfig, LoraModel
 from controlnet_aux import MLSDdetector
 
 from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras
-from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset
+from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset, PerspectiveDataset, PerspectiveDataLoader
 from .model import get_models
 from .evaluate import evaluate_pipe
 from .config import Config
@@ -38,7 +38,7 @@ def train_perspective(config: Config):
 
     label_mapping = get_label_mapping(os.path.join(config.dataset.data_root, "data.yaml"))
 
-    train_dataset = InpaintLoraDataset(
+    train_dataset = PerspectiveDataset(
         instance_data_root= os.path.join(config.dataset.data_root, "train"),
         tokenizer=tokenizer,
         label_mapping=label_mapping,
@@ -48,7 +48,7 @@ def train_perspective(config: Config):
         scaling_pixels=config.dataset.scaling_pixels,
     )
 
-    valid_dataset = InpaintLoraDataset(
+    valid_dataset = PerspectiveDataset(
         instance_data_root=os.path.join(config.dataset.data_root, "valid"),
         tokenizer=tokenizer,
         label_mapping=label_mapping,
@@ -58,13 +58,13 @@ def train_perspective(config: Config):
         augmentation=False,
     )
 
-    train_dataloader = InpaintingDataLoader(
+    train_dataloader = PerspectiveDataLoader(
         train_dataset,
         batch_size=config.train.train_batch_size,
         tokenizer=tokenizer,
         device=config.device,
     )
-    valid_dataloader = InpaintingDataLoader(
+    valid_dataloader = PerspectiveDataLoader(
         valid_dataset,
         batch_size=config.train.eval_batch_size,
         tokenizer=tokenizer,
@@ -272,6 +272,66 @@ def train_perspective(config: Config):
         wandb.log(logs, step=global_step)
     wandb.finish()
 
+def loss_ssim_step(
+    batch,
+    unet,
+    vae,
+    tokenizer,
+    text_encoder,
+    scheduler,
+    mlsd,
+    config,
+):
+    weight_dtype = torch.float32
+    # generate the pipeline
+    ssim_loss = SSIM(window_size=11, size_average=True)
+    g_cuda = torch.Generator(device=config.device).manual_seed(config.seed)
+
+    pipe = StableDiffusionInpaintPipeline(
+            vae=vae,
+            text_encoder=text_encoder,
+            tokenizer=tokenizer,
+            unet=unet,
+            scheduler=scheduler,
+            safety_checker=None,
+            feature_extractor=None,
+        )
+    prompt_embeds = text_encoder(
+        batch["input_ids"].to(text_encoder.device)
+    )[0]
+    images = batch["pixel_values"]
+    masks = batch["mask"]
+
+    generated_images = pipe(
+        prompt_embeds=prompt_embeds,
+        image=images,
+        mask_image=masks,
+        generator=g_cuda,
+        num_inference_steps=20,
+        height=images.shape[2],
+        width=images.shape[3],
+        strength=1, 
+    ).images
+        
+    # stack the images in a batch 
+    generated_mlsd = []
+    originals_mlsd = []
+    for i, gen_img in enumerate(generated_images):
+        edges_generated = mlsd(gen_img)
+        edges_original = mlsd(images[i])
+        plt.subplot(1,2,1)
+        plt.imshow(edges_generated)
+        plt.subplot(1,2,2)
+        plt.imshow(edges_original)
+        plt.show()
+        generated_mlsd.append(torch.tensor(np.array(edges_generated)))
+        originals_mlsd.append(torch.tensor(np.array(edges_original)))
+
+    edges_generated = torch.stack(generated_mlsd)
+    edges_original = torch.stack(originals_mlsd)
+    loss = -ssim_loss(edges_generated, edges_original)
+    
+    return loss
 
 def train(config: Config):
     download_roboflow_dataset(config)
@@ -621,63 +681,4 @@ def loss_step(
 
     return loss
 
-def loss_ssim_step(
-    batch,
-    unet,
-    vae,
-    tokenizer,
-    text_encoder,
-    scheduler,
-    mlsd,
-    config,
-):
-    weight_dtype = torch.float32
-    # generate the pipeline
-    ssim_loss = SSIM(window_size=11, size_average=True)
-    g_cuda = torch.Generator(device=config.device).manual_seed(config.seed)
 
-    pipe = StableDiffusionInpaintPipeline(
-            vae=vae,
-            text_encoder=text_encoder,
-            tokenizer=tokenizer,
-            unet=unet,
-            scheduler=scheduler,
-            safety_checker=None,
-            feature_extractor=None,
-        )
-    prompt_embeds = text_encoder(
-        batch["input_ids"].to(text_encoder.device)
-    )[0]
-    images = batch["pixel_values"]
-    masks = batch["mask"]
-
-    generated_images = pipe(
-        prompt_embeds=prompt_embeds,
-        image=images,
-        mask_image=masks,
-        generator=g_cuda,
-        num_inference_steps=20,
-        height=images.shape[2],
-        width=images.shape[3],
-        strength=1, 
-    ).images
-        
-    # stack the images in a batch 
-    generated_mlsd = []
-    originals_mlsd = []
-    for i, gen_img in enumerate(generated_images):
-        edges_generated = mlsd(gen_img)
-        edges_original = mlsd(images[i])
-        plt.subplot(1,2,1)
-        plt.imshow(edges_generated)
-        plt.subplot(1,2,2)
-        plt.imshow(edges_original)
-        plt.show()
-        generated_mlsd.append(torch.tensor(np.array(edges_generated)))
-        originals_mlsd.append(torch.tensor(np.array(edges_original)))
-
-    edges_generated = torch.stack(generated_mlsd)
-    edges_original = torch.stack(originals_mlsd)
-    loss = -ssim_loss(edges_generated, edges_original)
-    
-    return loss
