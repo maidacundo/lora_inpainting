@@ -31,7 +31,8 @@ class InpaintLoraDataset(Dataset):
         normalize=True,
         augmentation=True,
         scaling_pixels: int = 0,
-        labels_filter: Optional[list]=None,
+        labels_filter: Optional[list] = None,
+        to_tensor: bool = True,
     ):
         self.size = size
         self.tokenizer = tokenizer
@@ -58,7 +59,11 @@ class InpaintLoraDataset(Dataset):
             [
                 transforms.Resize(size=self.size),
                 transforms.ToImageTensor(), 
-                transforms.ConvertImageDtype(torch.float32),
+                if self.to_tensor
+                else transforms.Lambda(lambda x: x),
+                transforms.ConvertImageDtype(torch.float32)
+                if self.to_tensor
+                else transforms.Lambda(lambda x: x),
                 transforms.Normalize(mean=self.mean, std=self.std)
                 if self.normalize
                 else transforms.Lambda(lambda x: x),

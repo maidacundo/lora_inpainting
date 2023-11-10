@@ -3,6 +3,7 @@ import itertools
 import wandb
 import math
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 import numpy as np
 import torch
@@ -46,6 +47,7 @@ def train_perspective(config: Config):
         size=config.dataset.image_size,
         normalize=config.dataset.normalize_images,
         scaling_pixels=config.dataset.scaling_pixels,
+        to_tensor=False,
     )
 
     valid_dataset = InpaintLoraDataset(
@@ -636,45 +638,48 @@ def loss_ssim_step(
     ssim_loss = SSIM(window_size=11, size_average=True)
     g_cuda = torch.Generator(device=config.device).manual_seed(config.seed)
 
-    with torch.no_grad():
-        pipe = StableDiffusionInpaintPipeline(
-                vae=vae,
-                text_encoder=text_encoder,
-                tokenizer=tokenizer,
-                unet=unet,
-                scheduler=scheduler,
-                safety_checker=None,
-                feature_extractor=None,
-                dtype=torch.float16,
-            )
-        prompt_embeds = text_encoder(
-            batch["input_ids"].to(text_encoder.device)
-        )[0]
-        images = batch["pixel_values"]
-        masks = batch["mask"]
+    pipe = StableDiffusionInpaintPipeline(
+            vae=vae,
+            text_encoder=text_encoder,
+            tokenizer=tokenizer,
+            unet=unet,
+            scheduler=scheduler,
+            safety_checker=None,
+            feature_extractor=None,
+        )
+    prompt_embeds = text_encoder(
+        batch["input_ids"].to(text_encoder.device)
+    )[0]
+    images = batch["pixel_values"]
+    masks = batch["mask"]
 
-        generated_images = pipe(
-            prompt_embeds=prompt_embeds,
-            image=images,
-            mask_image=masks,
-            generator=g_cuda,
-            num_inference_steps=20,
-            height=images.shape[1],
-            width=images.shape[2],
-            strength=1, 
-        ).images
+    generated_images = pipe(
+        prompt_embeds=prompt_embeds,
+        image=images,
+        mask_image=masks,
+        generator=g_cuda,
+        num_inference_steps=20,
+        height=images.shape[2],
+        width=images.shape[3],
+        strength=1, 
+    ).images
         
-        # stack the images in a batch 
-        generated_mlsd = []
-        originals_mlsd = []
-        for i, gen_img in enumerate(generated_images):
-            edges_generated = mlsd(gen_img)
-            edges_original = mlsd(images[i])
-            generated_mlsd.append(torch.tensor(np.array(edges_generated)))
-            originals_mlsd.append(torch.tensor(np.array(edges_original)))
+    # stack the images in a batch 
+    generated_mlsd = []
+    originals_mlsd = []
+    for i, gen_img in enumerate(generated_images):
+        edges_generated = mlsd(gen_img)
+        edges_original = mlsd(images[i].permute(1,2,0))
+        plt.subplot(1,2,1)
+        plt.imshow(edges_generated)
+        plt.subplot(1,2,2)
+        plt.imshow(edges_original)
+        plt.show()
+        generated_mlsd.append(torch.tensor(np.array(edges_generated)))
+        originals_mlsd.append(torch.tensor(np.array(edges_original)))
 
-        edges_generated = torch.stack(generated_mlsd)
-        edges_original = torch.stack(originals_mlsd)
-        loss = -ssim_loss(edges_generated, edges_original)
-        
+    edges_generated = torch.stack(generated_mlsd)
+    edges_original = torch.stack(originals_mlsd)
+    loss = -ssim_loss(edges_generated, edges_original)
+    
     return loss
