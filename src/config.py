@@ -68,8 +68,7 @@ class TrainConfig:
     clip_gradients_max_norm: float = 1.0
     use_xformers: bool = False
     checkpoint_folder: str = 'checkpoints'
-    train_perspective: bool = False
-
+    
 @dataclass
 class EvaluationConfig:
     num_eval_steps: int = 20

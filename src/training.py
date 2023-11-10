@@ -36,7 +36,6 @@ def train_perspective(config: Config):
         load_from_safetensor=True,
     )
 
-
     label_mapping = get_label_mapping(os.path.join(config.dataset.data_root, "data.yaml"))
 
     train_dataset = InpaintLoraDataset(
@@ -669,7 +668,7 @@ def loss_ssim_step(
     originals_mlsd = []
     for i, gen_img in enumerate(generated_images):
         edges_generated = mlsd(gen_img)
-        edges_original = mlsd(images[i].permute(1,2,0))
+        edges_original = mlsd(images[i])
         plt.subplot(1,2,1)
         plt.imshow(edges_generated)
         plt.subplot(1,2,2)
