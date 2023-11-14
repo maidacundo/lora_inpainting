@@ -6,3 +6,4 @@ wandb
 omegaconf
 ml-collections
 controlnet-aux
+pytorch-msssim

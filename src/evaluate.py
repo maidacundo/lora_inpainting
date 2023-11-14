@@ -30,8 +30,7 @@ def evaluate_pipe(
                     unet=unet,
                     scheduler=noise_scheduler,
                     safety_checker=None,
-                    feature_extractor=None,
-                    dtype=torch.float16,
+                    feature_extractor=None, 
                 )
         pipe.set_progress_bar_config(disable=True)
 

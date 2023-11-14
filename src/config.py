@@ -9,7 +9,7 @@ class DatasetConfig:
     data_root: str = 'data'
     image_size: int = 512
     max_image_size: int = 512
-    normalize_images: bool = True
+    normalize_images: bool = False # TODO check if this is needed and if it is done in the right way (for now it is set to false)
     scaling_pixels: int = 25
 
 @dataclass
@@ -49,6 +49,7 @@ class TrainConfig:
     unet_lr: float = 2e-4
     text_encoder_lr: float = 2e-4
     mask_temperature: float = 1.0
+    criterion: str = 'mse'
     eval_every_n_epochs: int = 5
     num_checkpoint_limit: int = 5 # TODO use this and delete the previous checkpoints (if needed, not sure its a good feature)
     mixed_precision: str = 'no'
