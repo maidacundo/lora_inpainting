@@ -10,6 +10,8 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.checkpoint
+from torch.autograd import Variable
+
 from diffusers import StableDiffusionInpaintPipeline, logging
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.optimization import get_scheduler
@@ -308,8 +310,8 @@ def loss_ssim_step(
         mask_image=masks,
         generator=g_cuda,
         num_inference_steps=20,
-        height=images.shape[2],
-        width=images.shape[3],
+        height=config.dataset.image_size,
+        width=config.dataset.image_size,
         strength=1, 
     ).images
         
@@ -324,12 +326,15 @@ def loss_ssim_step(
         plt.subplot(1,2,2)
         plt.imshow(edges_original)
         plt.show()
-        generated_mlsd.append(torch.tensor(np.array(edges_generated)))
         originals_mlsd.append(torch.tensor(np.array(edges_original)))
-
-    edges_generated = torch.stack(generated_mlsd)
+        generated_mlsd.append(torch.tensor(np.array(edges_generated)))
+        
     edges_original = torch.stack(originals_mlsd)
-    loss = -ssim_loss(edges_generated, edges_original)
+    edges_generated = torch.stack(generated_mlsd)
+    
+    img1 = Variable(edges_original, requires_grad=False)
+    img2 = Variable(edges_generated, requires_grad=True)
+    loss = -ssim_loss(img1, img2)
     
     return loss
 

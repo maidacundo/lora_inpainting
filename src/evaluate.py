@@ -7,6 +7,7 @@ from diffusers import (
 )
 from typing import List
 import wandb
+import gc
 
 logging.set_verbosity_error()
 
@@ -63,4 +64,8 @@ def evaluate_pipe(
                     generations.append(image)
 
             images_log[prompt] = generations
+
+    del pipe
+    gc.collect()
+    torch.cuda.empty_cache()
     return images_log
