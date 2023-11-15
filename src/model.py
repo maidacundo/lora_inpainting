@@ -12,11 +12,8 @@ import re
 def get_models(
     pretrained_model_name_or_path,
     pretrained_vae_name_or_path,
-    placeholder_tokens: Optional[List[str]] = None,
-    initializer_tokens: Optional[List[str]] = None,
     device: str = "cuda",
     load_from_safetensor=False,
-    num_train_timesteps: Optional[int] = None,
 ):
     if load_from_safetensor:
 
@@ -59,6 +56,8 @@ def get_models(
             subfolder="scheduler",
         )
 
+
+    """
     # Add placeholder tokens to tokenizer
     placeholder_token_ids = []
     if placeholder_tokens:
@@ -100,9 +99,7 @@ def get_models(
 
                 initializer_token_id = token_ids[0]
                 token_embeds[placeholder_token_id] = token_embeds[initializer_token_id]
-
-    if num_train_timesteps:
-        scheduler.config.num_train_timesteps = num_train_timesteps
+    """
 
     return (
         text_encoder.to(device),
@@ -110,5 +107,4 @@ def get_models(
         unet.to(device),
         tokenizer,
         scheduler,
-        placeholder_token_ids,
     )

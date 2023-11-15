@@ -46,8 +46,8 @@ class TrainConfig:
     train_unet: bool = True
     train_text_encoder: bool = True
     text_encoder_train_ratio = 1
-    unet_lr: float = 2e-4
-    text_encoder_lr: float = 2e-4
+    unet_lr: float = 1e-4
+    text_encoder_lr: float = 1e-4
     mask_temperature: float = 1.0
     criterion: str = 'mse'
     eval_every_n_epochs: int = 5

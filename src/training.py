@@ -19,7 +19,7 @@ from peft import LoraConfig, LoraModel
 from controlnet_aux import MLSDdetector
 
 from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras
-from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset, PerspectiveDataset, PerspectiveDataLoader
+from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset
 from .model import get_models
 from .evaluate import evaluate_pipe
 from .config import Config
@@ -31,13 +31,12 @@ def train(config: Config):
     download_roboflow_dataset(config)
     set_random_seed(config.seed)
 
-    text_encoder, vae, unet, tokenizer, noise_scheduler, placeholder_token_ids = get_models(
+    text_encoder, vae, unet, tokenizer, noise_scheduler = get_models(
         config.model.model_path,
         config.model.vae_path,
         device=config.device,
         load_from_safetensor=True,
     )
-
 
     label_mapping = get_label_mapping(os.path.join(config.dataset.data_root, "data.yaml"))
 
@@ -182,12 +181,12 @@ def train(config: Config):
         criterion = torch.nn.MSELoss(reduction='mean')
         print('Using MSE loss')
     elif config.train.criterion == 'ssim':
-        criterion = SSIM_loss(data_range=1.0, size_average=True, channel=3)
+        criterion = SSIM_loss(data_range=1.0, size_average=True, channel=4)
         print('Using SSIM loss')
     elif config.train.criterion == 'ms_ssim':
-        criterion = MS_SSIM_loss(data_range=1.0, size_average=True, channel=3)
+        criterion = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4)
         print('Using MS-SSIM loss')
-        
+
     for epoch in range(math.ceil(config.train.total_steps / len(train_dataloader))):
         for batch in train_dataloader:
             optimizer_lora.zero_grad()
@@ -214,7 +213,7 @@ def train(config: Config):
             lr_scheduler_lora.step()
             progress_bar.update(1)
             logs = {
-                "loss_lora": loss_lora.detach().item(),
+                "loss": loss_lora.detach().item(),
                 "lr": lr_scheduler_lora.get_last_lr()[0],
             }
             progress_bar.set_postfix(**logs)
@@ -227,8 +226,6 @@ def train(config: Config):
                 print("Text encoder training finished")
                 print_trainable_parameters(text_encoder, "text_encoder")
                 print('-'*50)
-                
-
 
         if config.log_wandb:
             logs = {
