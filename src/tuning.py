@@ -276,8 +276,6 @@ def objective(trial, config: Config, text_encoder, tokenizer, vae, unet, noise_s
 def optimize(config, n_trials=100):
     study = optuna.create_study(
         study_name="study",
-        storage="sqlite:///example.db",
-        load_if_exists=True,
         direction='minimize',
     )
 
