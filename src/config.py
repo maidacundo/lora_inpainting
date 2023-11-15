@@ -62,7 +62,7 @@ class TrainConfig:
     total_steps: int = 4000
     optimizer: str = 'adamw' # TODO can be both adamw or lion optimizers (in order to test lion convergence and styling capabilities)
     learning_rate: float = 1e-4
-    weight_decay: float = 1e-4
+    weight_decay: float = 1e-3
     clip_gradients: bool = True
     clip_gradients_max_norm: float = 1.0
     use_xformers: bool = False
