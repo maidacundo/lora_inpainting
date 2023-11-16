@@ -197,10 +197,11 @@ def train(config: Config):
                 vae,
                 text_encoder,
                 noise_scheduler,
-                t_mutliplier=0.8,
+                t_mutliplier=config.train.t_mutliplier,
                 mixed_precision=True,
                 mask_temperature=config.train.mask_temperature,
                 criterion=criterion,
+                loss_on_latent=config.train.loss_on_latent,
             )
             loss_lora.backward()
             loss_sum += loss_lora.detach().item()
@@ -246,7 +247,7 @@ def train(config: Config):
             num_train_timesteps = noise_scheduler.config.num_train_timesteps
             noise_scheduler.config.num_train_timesteps = 20
 
-            for _ in range(config.eval.eval_epochs):
+            for _ in tqdm(range(config.eval.eval_epochs)):
                 for batch in valid_dataloader:
                     with torch.no_grad():
                         val_loss = loss_step(
@@ -255,10 +256,11 @@ def train(config: Config):
                             vae,
                             text_encoder,
                             noise_scheduler,
-                            t_mutliplier=1,
+                            t_mutliplier=config.train.t_mutliplier,
                             mixed_precision=True,
                             mask_temperature=config.train.mask_temperature,
                             criterion=criterion,
+                            loss_on_latent=False,
                         )
                         loss_sum += val_loss.detach().item()
 
@@ -299,6 +301,7 @@ def loss_step(
     mask_temperature=1.0,
     vae_scale_factor=8,
     criterion='mse',
+    loss_on_latent=False,
 ):
     weight_dtype = torch.float32
 
@@ -383,8 +386,12 @@ def loss_step(
 
         target = target * mask
 
-
-    loss = criterion(model_pred.float(), target.float())
+    if loss_on_latent:
+        noisy_latents = scheduler.add_noise(latents, target, timesteps)
+        predicted_noisy_latents = scheduler.add_noise(latents, model_pred, timesteps)
+        loss = criterion(predicted_noisy_latents.float(), noisy_latents.float())
+    else:
+        loss = criterion(model_pred.float(), target.float())
 
     return loss
 
