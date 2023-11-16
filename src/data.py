@@ -103,7 +103,7 @@ class InpaintLoraDataset(Dataset):
         mask = self.mask_transforms(mask)
 
         if self.augmentation:
-
+            i=0
             while True:
                 # Random crop
                 i, j, h, w = transforms.RandomCrop.get_params(
@@ -117,6 +117,10 @@ class InpaintLoraDataset(Dataset):
                 # when the size is not 512 (e.g. 768)
                 if torch.sum(mask) > 0:
                     break
+                if i > 100:
+                    print("Error: the mask is all zeros")
+                    break
+                i+=1
 
 
             # Random horizontal flipping

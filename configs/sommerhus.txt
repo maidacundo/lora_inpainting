@@ -1,0 +1,44 @@
+from src.config import DatasetConfig, Config, ModelConfig, WandbConfig, EvaluationConfig, TrainConfig
+
+dataset_config = DatasetConfig(
+    roboflow_api_key='HNXIsW3WwnidNDQZHexX',
+    roboflow_workspace='arked',
+    project_name='sommerhus',
+    dataset_version=3,
+    data_root='sommerhus_data',
+    image_size=512,
+    normalize_images=False,
+    scaling_pixels=25,
+    do_classifier_free_guidance=True,
+)
+
+model_config = ModelConfig(
+    model_path=realistic_vision_path,
+    vae_path=vae_path,
+)
+
+wandb_config = WandbConfig(
+    project_name='sommerhus',
+)
+
+eval_config=EvaluationConfig(
+    prompts=['sommerhus'],
+)
+
+train_config=TrainConfig(
+    checkpoint_folder = wandb_config.project_name + "_checkpoints",
+    train_batch_size = 4,
+    unet_lr=1e-4,
+    text_encoder_lr=1e-4,
+    scheduler_num_cycles=4,
+    total_steps=1000,
+    criterion='ssim',
+)
+
+config = Config(
+    dataset=dataset_config,
+    model=model_config,
+    wandb=wandb_config,
+    eval=eval_config,
+    train=train_config,
+)
