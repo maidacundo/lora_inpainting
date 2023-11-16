@@ -48,6 +48,7 @@ def train(config: Config):
         size=config.dataset.image_size,
         normalize=config.dataset.normalize_images,
         scaling_pixels=config.dataset.scaling_pixels,
+        do_classifier_free_guidance=config.dataset.do_classifier_free_guidance,
     )
 
     valid_dataset = InpaintLoraDataset(

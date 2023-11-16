@@ -32,10 +32,14 @@ class InpaintLoraDataset(Dataset):
         augmentation=True,
         scaling_pixels: int = 0,
         labels_filter: Optional[list] = None,
+        do_classifier_free_guidance: bool = False,
+        cfg_probability: float = 0.1,
     ):
         self.size = size
         self.tokenizer = tokenizer
         self.augmentation = augmentation
+        self.do_classifier_free_guidance = do_classifier_free_guidance
+        self.cfg_probability = cfg_probability
 
         if not Path(instance_data_root).exists():
             raise ValueError("Instance images root doesn't exists.")
@@ -148,6 +152,10 @@ class InpaintLoraDataset(Dataset):
         text = self.label_mapping[label]
         if self.global_caption:
             text += ', ' + self.global_caption.strip()
+
+        if self.do_classifier_free_guidance:
+            if random.random() > self.cfg_probability:
+                text = ""
 
         example["instance_prompt_ids"] = self.tokenizer(
             text,

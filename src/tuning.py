@@ -22,9 +22,9 @@ from .utils import set_random_seed, get_label_mapping, print_trainable_parameter
 from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset
 from .model import get_models
 from .evaluate import evaluate_pipe
-from .config import Config, LoraConfig
+from .config import Config
 from .losses import SSIM_loss, MS_SSIM_loss
-from training import loss_step
+from .training import loss_step
 
 import optuna
 from functools import partial 
@@ -83,19 +83,24 @@ def objective(trial, config: Config, text_encoder, tokenizer, vae, unet, noise_s
         ["q_proj", "v_proj", "mlp.fc1", "mlp.fc2"],
         ["mlp.fc1", "mlp.fc2"],
     ]
-    # LoraConfig
-    lora_config = LoraConfig(
-        rank=trial.suggest_categorical('rank', [8, 16, 32]),
-        alpha=trial.suggest_categorical('alpha', [1, 8, 16, 32]),
-        unet_target_modules=trial.suggest_categorical('unet_target_modules', unet_target_modules_suggestions),
-        text_encoder_target_modules=trial.suggest_categorical('text_encoder_target_modules', text_encoder_target_modules_suggestions),
-    )
 
     config.train.train_unet = trial.suggest_categorical('train_unet', [True, False])
     config.train.train_text_encoder = trial.suggest_categorical('train_text_encoder', [True, False])
     config.train.text_encoder_train_ratio = trial.suggest_uniform('text_encoder_train_ratio', 0.0, 1.0)
-    config.lora = lora_config
-    config.wandb.run_name = f"lora_{lora_config.rank}_{lora_config.alpha}_{str(lora_config.unet_target_modules)}_{str(lora_config.text_encoder_target_modules)}"
+
+    # Handle pruning based on the intermediate value.
+    if config.train.train_unet == False and config.train.train_text_encoder == False:
+        raise optuna.exceptions.TrialPruned()
+    if config.train.train_unet == False and config.train.text_encoder_train_ratio != 1.0:
+        raise optuna.exceptions.TrialPruned()
+
+    config.lora.rank = trial.suggest_categorical('rank', [8, 16, 32])
+    config.lora.alpha = trial.suggest_categorical('alpha', [1, 8, 16, 32])
+    unet_suggestion = trial.suggest_categorical('unet_target_modules', [0, 1, 2, 3, 4])
+    config.lora.unet_target_modules=unet_target_modules_suggestions[unet_suggestion]
+    text_encoder_suggestion = trial.suggest_categorical('text_encoder_target_modules', [0, 1, 2, 3, 4])
+    config.lora.text_encoder_target_modules=text_encoder_target_modules_suggestions[text_encoder_suggestion]
+    config.wandb.run_name = f"lora_{config.lora.rank}_{config.lora.alpha}_{str(config.lora.unet_target_modules)}_{str(config.lora.text_encoder_target_modules)}"
     
     if config.log_wandb:
         wandb.init(
@@ -106,6 +111,8 @@ def objective(trial, config: Config, text_encoder, tokenizer, vae, unet, noise_s
             tags=config.wandb.tags,
         )
 
+    params_to_optimize = None
+    
     if config.train.train_unet:
         unet_peft = LoraConfig(
             r=config.lora.rank,
@@ -136,13 +143,20 @@ def objective(trial, config: Config, text_encoder, tokenizer, vae, unet, noise_s
 
         text_encoder = LoraModel(text_encoder, text_encoder_peft, config.lora.text_encoder_adapter_name)
         print_trainable_parameters(text_encoder, "text_encoder")
-
-        params_to_optimize += [
-            {
-                "params": itertools.chain(text_encoder.parameters()),
-                "lr": config.train.text_encoder_lr,
-            }
-        ]
+        if params_to_optimize is None:
+            params_to_optimize = [
+                {
+                    "params": itertools.chain(text_encoder.parameters()),
+                    "lr": config.train.text_encoder_lr,
+                }
+            ]
+        else:
+            params_to_optimize += [
+                {
+                    "params": itertools.chain(text_encoder.parameters()),
+                    "lr": config.train.text_encoder_lr,
+                }
+            ]
 
     optimizer_lora = optim.AdamW(
         params_to_optimize,
@@ -307,10 +321,7 @@ def optimize(config, n_trials=100):
     for param in params_to_freeze:
         param.requires_grad = False
 
-    config.train.total_steps = 200
-    config.train.scheduler_warmup_steps = 0
-
-    objective = partial(objective, 
+    objective_partial = partial(objective, 
                         config=config, 
                         text_encoder=text_encoder, 
                         tokenizer=tokenizer, 
@@ -318,4 +329,4 @@ def optimize(config, n_trials=100):
                         unet=unet, 
                         noise_scheduler=noise_scheduler)
     
-    study.optimize(objective, n_trials=100, gc_after_trial=True)
+    study.optimize(objective_partial, n_trials=20, gc_after_trial=True)

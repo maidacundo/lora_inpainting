@@ -11,6 +11,7 @@ class DatasetConfig:
     max_image_size: int = 512
     normalize_images: bool = False # TODO check if this is needed and if it is done in the right way (for now it is set to false)
     scaling_pixels: int = 25
+    do_classifier_free_guidance: bool = False
 
 @dataclass
 class PromptConfig:
@@ -27,17 +28,17 @@ class LoraConfig:
     rank: int = 8
     alpha: float = 32.0
     dropout_p: float = 0.1
-    unet_adapter_name = 'lora_unet'
-    text_encoder_adapter_name = 'lora_te' 
+    unet_adapter_name: str = 'lora_unet'
+    text_encoder_adapter_name: str = 'lora_te' 
+    unet_target_modules: list = field(default_factory=lambda: ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"]) #, "proj_in", "conv1", "conv2"]
+    text_encoder_target_modules: list = field(default_factory=lambda: ["q_proj", "v_proj", "k_proj", "out_proj", "mlp.fc1", "mlp.fc2"])
     # "to_q", "to_v", "to_k", "to_out.0" are the names of the modules in attention layers
     # "ff.net.0.proj" is the name of the linear in the GEGLU activation
     # "proj_in", "conv1", "conv2" are the names of the modules in the resnet block
     # TODO understand better the role of each module and if it is needed to add more
-    unet_target_modules = ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"] #, "proj_in", "conv1", "conv2"]
 
     # "q_proj", "v_proj", "k_proj", "out_proj" are the names of the modules in the text encoder attention layers
     # "mlp.fc1", "mlp.fc2" are the names of the modules in the text encoder mlp that produce the embeddings
-    text_encoder_target_modules = ["q_proj", "v_proj", "k_proj", "out_proj", "mlp.fc1", "mlp.fc2"]
 
 @dataclass
 class TrainConfig:
