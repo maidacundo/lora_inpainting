@@ -1255,33 +1255,16 @@ class StableDiffusionAttentionStoreInpaintPipeline(
         self.unet.set_attn_processor(attn_procs)
         self.attention_store.num_att_layers = cross_att_count
 
-    @staticmethod
-    def extract_indexes(indixes):
-        len_dict = len(indixes)
-        indexes = [key for key in indixes.keys() if isinstance(key, int) and key not in [0, len_dict-1]]
-        return indexes
-
-    def get_indixes(self, prompt: str) -> Dict[str, int]:
+    def get_indices(self, prompt: str) -> Dict[str, int]:
         """Utility function to list the indices of the tokens you wish to alte"""
         ids = self.tokenizer(prompt).input_ids
-        indixes = {i: tok for tok, i in zip(self.tokenizer.convert_ids_to_tokens(ids), range(len(ids)))}
-        return indixes
+        indices = {i: tok for tok, i in zip(self.tokenizer.convert_ids_to_tokens(ids), range(len(ids)))}
+        return indices
     
-    def get_average_attention(self, from_where = ['down', 'up']):
-        average_attention = {}
-
-        for step in self.attention_store.keys():
-            average_attention[step] = []
-            for location in from_where:
-                average_attention[step].append(torch.stack(self.attention_store[step][location]).mean(0))
-            average_attention[step] = torch.stack(average_attention[step]).mean((0, 1)).reshape(self.attn_res[0], self.attn_res[1], -1)
-    
-        return average_attention
-
     def save_plot_attention(self, prompt, out_name='foo.png'):
-        average_attention = self.get_average_attention()
+        average_attention = self.attention_store.get_average_attention()
         prompt_index = self.get_indices(prompt)
-        index_to_plot = self.extract_indexes(prompt_index)
+        index_to_plot = self.extract_indices(prompt_index)
 
         n_timesteps = len(average_attention.keys())
         n_indx = len(index_to_plot)
@@ -1305,6 +1288,12 @@ class StableDiffusionAttentionStoreInpaintPipeline(
         img = cv2.imread(out_name)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         return PIL.Image.fromarray(img)
+    
+    @staticmethod
+    def extract_indices(indices):
+        len_dict = len(indices)
+        indices = [key for key in indices.keys() if isinstance(key, int) and key not in [0, len_dict-1]]
+        return indices
 
 def generate_random_sum(n):
     
@@ -1369,13 +1358,15 @@ class AttentionStore:
         self.step_store = self.get_empty_store()
         self.curr_step_index += 1
 
-    def get_average_attention(self):
+    def get_average_attention(self, from_where = ['down', 'up']):
         average_attention = {}
-        for step in self.attention_store.keys():
-            average_attention[step] = {}
-            for location in self.attention_store[step].keys():
-                average_attention[step][location] = torch.stack(self.attention_store[step][location]).mean(0)
 
+        for step in self.attention_store.keys():
+            average_attention[step] = []
+            for location in from_where:
+                average_attention[step].append(torch.stack(self.attention_store[step][location]).mean(0))
+            average_attention[step] = torch.stack(average_attention[step]).mean((0, 1)).reshape(self.attn_res[0], self.attn_res[1], -1)
+    
         return average_attention
 
     def aggregate_attention(self, from_where: List[str]) -> torch.Tensor:
@@ -1395,6 +1386,7 @@ class AttentionStore:
         self.cur_att_layer = 0
         self.step_store = self.get_empty_store()
         self.attention_store = {}
+        torch.cuda.empty_cache()
 
     def __init__(self, attn_res):
         """

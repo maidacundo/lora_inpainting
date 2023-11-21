@@ -8,7 +8,7 @@ from diffusers import (
 from typing import List
 import wandb
 import gc
-from pipeline_attention_inpainting import StableDiffusionAttentionStoreInpaintPipeline
+from .pipeline_attention_inpainting import StableDiffusionAttentionStoreInpaintPipeline
 
 logging.set_verbosity_error()
 
@@ -24,7 +24,7 @@ def evaluate_pipe(
     ):
     g_cuda = torch.Generator(device=config.device).manual_seed(config.seed)
 
-    with torch.no_grad():
+    with torch.cuda.amp.autocast(dtype=torch.float16), torch.no_grad():
         pipe = StableDiffusionAttentionStoreInpaintPipeline(
                     vae=vae,
                     text_encoder=text_encoder,
@@ -67,6 +67,7 @@ def evaluate_pipe(
                     image = wandb.Image(generated_image)
                     generations.append(image)
                     attention_maps.append(attention_plot)
+                    pipe.attention_store.reset()
 
             images_log[prompt] = generations
             images_log['ATTN MAP: ' + prompt] = attention_maps

@@ -59,6 +59,7 @@ def train(config: Config):
         size=config.dataset.image_size,
         normalize=False,
         augmentation=False,
+        is_val=True,
     )
 
     train_dataloader = InpaintingDataLoader(

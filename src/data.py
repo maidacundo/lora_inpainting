@@ -28,6 +28,7 @@ class InpaintLoraDataset(Dataset):
         label_mapping: dict,
         global_caption: Optional[str] = None,
         size=512,
+        is_val=False,
         normalize=True,
         augmentation=True,
         scaling_pixels: int = 0,
@@ -56,11 +57,14 @@ class InpaintLoraDataset(Dataset):
         self.scaling_pixels = scaling_pixels
         self.labels_filter = labels_filter # TODO implement labels filter
         
-        self.mean, self.std = self.calculate_mean_std()
+        if self.normalize:
+            self.mean, self.std = self.calculate_mean_std()
 
         self.image_transforms = transforms.Compose(
             [
-                transforms.Resize(size=self.size),
+                transforms.Resize(size=self.size)
+                if not is_val
+                else transforms.Resize(size=(self.size, self.size)),
                 transforms.ToImageTensor(),
                 transforms.ConvertImageDtype(torch.float32),
                 transforms.Normalize(mean=self.mean, std=self.std)
