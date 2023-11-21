@@ -68,6 +68,9 @@ def evaluate_pipe(
                     generations.append(image)
                     attention_maps.append(attention_plot)
                     pipe.attention_store.reset()
+                    del pipe.attention_store
+                    gc.collect()
+                    torch.cuda.empty_cache()
 
             images_log[prompt] = generations
             images_log['ATTN MAP: ' + prompt] = attention_maps

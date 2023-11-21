@@ -1365,7 +1365,7 @@ class AttentionStore:
             average_attention[step] = []
             for location in from_where:
                 average_attention[step].append(torch.stack(self.attention_store[step][location]).mean(0))
-            average_attention[step] = torch.stack(average_attention[step]).mean((0, 1)).reshape(self.attn_res[0], self.attn_res[1], -1)
+            average_attention[step] = torch.stack(average_attention[step]).mean((0, 1)).reshape(self.attn_res[0], self.attn_res[1], -1).cpu()
     
         return average_attention
 
