@@ -277,13 +277,18 @@ def save_loras(
     weights = {}
     metadata = {}
 
+    if config.lora.output_format != 'kohya_ss' and config.lora.output_format != 'peft':
+        raise ValueError(f'Invalid output format {config.lora.output_format}')
+
     if unet:
         state_dict = get_peft_model_state_dict(unet, adapter_name=config.lora.unet_adapter_name)
-        state_dict = get_module_kohya_state_dict(state_dict, config.lora.unet_adapter_name, lora_alpha)
+        if config.lora.output_format == 'kohya_ss':
+            state_dict = get_module_kohya_state_dict(state_dict, config.lora.unet_adapter_name, lora_alpha)
         weights.update(state_dict)
     if text_encoder:
         state_dict = get_peft_model_state_dict(text_encoder, adapter_name=config.lora.text_encoder_adapter_name)
-        state_dict = get_module_kohya_state_dict(state_dict, config.lora.text_encoder_adapter_name, lora_alpha)
+        if config.lora.output_format == 'kohya_ss':
+            state_dict = get_module_kohya_state_dict(state_dict, config.lora.text_encoder_adapter_name, lora_alpha)
         weights.update(state_dict)
     
     save_file(weights, save_path, metadata)

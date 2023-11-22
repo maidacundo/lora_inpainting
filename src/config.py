@@ -39,6 +39,7 @@ class LoraConfig:
 
     # "q_proj", "v_proj", "k_proj", "out_proj" are the names of the modules in the text encoder attention layers
     # "mlp.fc1", "mlp.fc2" are the names of the modules in the text encoder mlp that produce the embeddings
+    output_format: str = 'kohya_ss' # can be either 'kohya_ss' or 'peft', 'kohya_ss' is compatible with A1111
 
 @dataclass
 class TrainConfig:
@@ -78,6 +79,9 @@ class EvaluationConfig:
     prompts: list = field(default_factory=list)
     strengths: list = field(default_factory=lambda: [1])
     eval_epochs: int = 10
+    log_attention_maps: bool = False
+    num_images_per_prompt: int = 1 # the number of images to generate for each prompt during evaluation (used to compute FID)
+    compute_fid: bool = False
 
 @dataclass
 class WandbConfig:

@@ -178,21 +178,31 @@ def train(config: Config):
         text_encoder_steps = math.ceil(config.train.total_steps * config.train.text_encoder_train_ratio)
     else:
         text_encoder_steps = config.train.total_steps
+    
+    mse = torch.nn.MSELoss(reduction='mean')
+    ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4)
+    ms_ssim = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4)
 
     if config.train.criterion == 'mse':
-        criterion = torch.nn.MSELoss(reduction='mean')
+        criterion = mse
         print('Using MSE loss')
     elif config.train.criterion == 'ssim':
-        criterion = SSIM_loss(data_range=1.0, size_average=True, channel=4)
+        criterion = ssim
         print('Using SSIM loss')
     elif config.train.criterion == 'ms_ssim':
-        criterion = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4)
+        criterion = ms_ssim
         print('Using MS-SSIM loss')
+    elif config.train.criterion == 'mse+ssim':
+        def criterion(pred, target, alpha=0.3):
+            return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
+        print('Using MSE + SSIM loss')
 
     for epoch in range(math.ceil(config.train.total_steps / len(train_dataloader))):
+        unet.train()
+        text_encoder.train()
         for batch in train_dataloader:
             optimizer_lora.zero_grad()
-            loss_lora = loss_step(
+            model_pred, target = forward_step(
                 batch,
                 unet,
                 vae,
@@ -201,11 +211,11 @@ def train(config: Config):
                 t_mutliplier=config.train.t_mutliplier,
                 mixed_precision=True,
                 mask_temperature=config.train.mask_temperature,
-                criterion=criterion,
                 loss_on_latent=config.train.loss_on_latent,
             )
-            loss_lora.backward()
-            loss_sum += loss_lora.detach().item()
+            train_loss = criterion(model_pred.float(), target.float())
+            train_loss.backward()
+            loss_sum += train_loss.detach().item()
 
             if config.train.clip_gradients:
                 torch.nn.utils.clip_grad_norm_(
@@ -216,7 +226,7 @@ def train(config: Config):
             lr_scheduler_lora.step()
             progress_bar.update(1)
             logs = {
-                "loss": loss_lora.detach().item(),
+                config.train.criterion: train_loss.detach().item(),
                 "lr": lr_scheduler_lora.get_last_lr()[0],
             }
             progress_bar.set_postfix(**logs)
@@ -232,43 +242,51 @@ def train(config: Config):
 
         if config.log_wandb:
             logs = {
-                "loss_lora": loss_sum / len(train_dataloader),
+                "train_"+config.train.criterion: loss_sum / len(train_dataloader),
                 "lr": lr_scheduler_lora.get_last_lr()[0],
             }
-            loss_sum = 0.0
+        loss_sum = 0.0
 
         if epoch % config.train.eval_every_n_epochs == 0:
-
-            loss_sum = 0.0
-            # evaluate the unet
+            
             unet.eval()
             text_encoder.eval()
+
+
+            mse_loss = 0.0
+            ssim_loss = 0.0
+            ms_ssim_loss = 0.0
 
             # set the number of timesteps to 20 for evaluation
             num_train_timesteps = noise_scheduler.config.num_train_timesteps
             noise_scheduler.config.num_train_timesteps = 20
 
-            for _ in tqdm(range(config.eval.eval_epochs)):
+            for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        val_loss = loss_step(
-                            batch,
-                            unet,
-                            vae,
-                            text_encoder,
-                            noise_scheduler,
-                            t_mutliplier=config.train.t_mutliplier,
-                            mixed_precision=True,
-                            mask_temperature=config.train.mask_temperature,
-                            criterion=criterion,
-                            loss_on_latent=False,
-                        )
-                        loss_sum += val_loss.detach().item()
+                        model_pred, target = forward_step(
+                                                batch,
+                                                unet,
+                                                vae,
+                                                text_encoder,
+                                                noise_scheduler,
+                                                t_mutliplier=config.train.t_mutliplier,
+                                                mixed_precision=True,
+                                                mask_temperature=config.train.mask_temperature,
+                                                loss_on_latent=False,
+                                            )
+                        mse_loss += mse(model_pred.float(), target.float()).detach().item()
+                        ssim_loss += ssim(model_pred.float(), target.float()).detach().item()
+                        ms_ssim_loss += ms_ssim(model_pred.float(), target.float()).detach().item()
+
 
             # reset the number of timesteps
             noise_scheduler.config.num_train_timesteps = num_train_timesteps
 
-            logs['val_loss'] = loss_sum / (len(valid_dataloader) * config.eval.eval_epochs)
+            logs['val_mse'] = mse_loss / (len(valid_dataloader) * config.eval.eval_epochs)
+            logs['val_ssim'] = ssim_loss / (len(valid_dataloader) * config.eval.eval_epochs)
+            logs['val_ms_ssim'] = ms_ssim_loss / (len(valid_dataloader) * config.eval.eval_epochs)
+            
             loss_sum = 0.0
             if config.log_wandb:
                 images_log = evaluate_pipe(
@@ -291,7 +309,7 @@ def train(config: Config):
         wandb.log(logs, step=global_step)
     wandb.finish()
 
-def loss_step(
+def forward_step(
     batch,
     unet,
     vae,
@@ -301,7 +319,6 @@ def loss_step(
     mixed_precision=False,
     mask_temperature=1.0,
     vae_scale_factor=8,
-    criterion='mse',
     loss_on_latent=False,
 ):
     weight_dtype = torch.float32
@@ -388,12 +405,10 @@ def loss_step(
         target = target * mask
 
     if loss_on_latent:
-        noisy_latents = scheduler.add_noise(latents, target, timesteps)
-        predicted_noisy_latents = scheduler.add_noise(latents, model_pred, timesteps)
-        loss = criterion(predicted_noisy_latents.float(), noisy_latents.float())
-    else:
-        loss = criterion(model_pred.float(), target.float())
+        target = scheduler.add_noise(latents, target, timesteps)
+        model_pred = scheduler.add_noise(latents, model_pred, timesteps)
 
-    return loss
+
+    return model_pred, target
 
 
