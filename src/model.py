@@ -19,7 +19,7 @@ def get_models(
     pretrained_vae_name_or_path,
     device: str = "cuda",
     load_from_safetensor=False,
-):
+) -> [CLIPTextModel, AutoencoderKL, UNet2DConditionModel, CLIPTokenizer, DDIMScheduler]:
     if load_from_safetensor:
 
         print('loading VAE...')

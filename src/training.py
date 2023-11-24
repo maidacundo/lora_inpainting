@@ -52,8 +52,25 @@ def train(config: Config):
         do_classifier_free_guidance=config.dataset.do_classifier_free_guidance,
     )
 
+    if not os.path.exists(os.path.join(config.dataset.data_root, "valid")):
+        raise ValueError("Valid dataset not found. Please create a test dataset.")
+
     valid_dataset = InpaintLoraDataset(
         instance_data_root=os.path.join(config.dataset.data_root, "valid"),
+        tokenizer=tokenizer,
+        label_mapping=label_mapping,
+        global_caption=config.prompt.global_caption,
+        size=config.dataset.image_size,
+        normalize=False,
+        augmentation=False,
+        is_val=True,
+    )
+
+    if not os.path.exists(os.path.join(config.dataset.data_root, "test")):
+        raise ValueError("Test dataset not found. Please create a test dataset.")
+
+    test_dataset = InpaintLoraDataset(
+        instance_data_root=os.path.join(config.dataset.data_root, "test"),
         tokenizer=tokenizer,
         label_mapping=label_mapping,
         global_caption=config.prompt.global_caption,
@@ -106,6 +123,8 @@ def train(config: Config):
         wandb.watch(unet)
         wandb.watch(text_encoder)
 
+    params_to_optimize = []
+
     if config.train.train_unet:
         unet_peft = LoraConfig(
             r=config.lora.rank,
@@ -118,7 +137,7 @@ def train(config: Config):
         unet = LoraModel(unet, unet_peft, config.lora.unet_adapter_name)
         print_trainable_parameters(unet, "unet")
 
-        params_to_optimize = [
+        params_to_optimize += [
             {
                 "params": itertools.chain(unet.parameters()),
                 "lr": config.train.unet_lr,
@@ -299,7 +318,7 @@ def train(config: Config):
                     tokenizer=tokenizer,
                     unet=unet,
                     noise_scheduler=noise_scheduler,
-                    valid_dataset=valid_dataset,
+                    dataset=test_dataset,
                     config=config,
                     dino_scorer=dino_scorer if config.eval.compute_dino_score else None,
                 )

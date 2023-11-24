@@ -21,7 +21,7 @@ def evaluate_pipe(
         tokenizer,
         unet,
         noise_scheduler,
-        eval_dataset: torch.utils.data.Dataset,
+        dataset: torch.utils.data.Dataset,
         config: Config,
         dino_scorer: Optional[DinoScorer] = None,
         attn_res=(32,32),
@@ -31,7 +31,6 @@ def evaluate_pipe(
     with torch.cuda.amp.autocast(dtype=torch.float16), torch.no_grad():
 
         if config.eval.log_attention_maps:
-
             pipe = StableDiffusionAttentionStoreInpaintPipeline(
                         vae=vae,
                         text_encoder=text_encoder,
@@ -66,10 +65,8 @@ def evaluate_pipe(
             if config.eval.log_attention_maps:
                 attention_maps = []
             
-
-            
             for strength in config.eval.strengths:
-                for example in eval_dataset:
+                for example in dataset:
 
                     image = example["instance_images"]
                     mask_image = example["instance_masks"]
