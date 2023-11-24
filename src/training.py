@@ -24,6 +24,7 @@ from .model import get_models
 from .evaluate import evaluate_pipe
 from .config import Config
 from .losses import SSIM_loss, MS_SSIM_loss
+from .model import DinoScorer
 
 logging.set_verbosity_error()
 
@@ -197,6 +198,9 @@ def train(config: Config):
             return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
         print('Using MSE + SSIM loss')
 
+    if config.eval.compute_dino_score:
+        dino_scorer = DinoScorer('facebook/dino-vits16', valid_dataset.imgs)
+
     for epoch in range(math.ceil(config.train.total_steps / len(train_dataloader))):
         unet.train()
         text_encoder.train()
@@ -289,16 +293,17 @@ def train(config: Config):
             
             loss_sum = 0.0
             if config.log_wandb:
-                images_log = evaluate_pipe(
-                    vae,
-                    text_encoder,
-                    tokenizer,
-                    unet,
-                    noise_scheduler,
-                    valid_dataset,
-                    config,
+                evaluation_logs = evaluate_pipe(
+                    vae=vae,
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer,
+                    unet=unet,
+                    noise_scheduler=noise_scheduler,
+                    valid_dataset=valid_dataset,
+                    config=config,
+                    dino_scorer=dino_scorer if config.eval.compute_dino_score else None,
                 )
-                wandb.log(images_log, step=global_step)
+                wandb.log(evaluation_logs, step=global_step)
             save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{global_step}.safetensors')
             save_loras(
                 unet if config.train.train_unet else None, 

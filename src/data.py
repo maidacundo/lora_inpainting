@@ -1,12 +1,10 @@
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import random
 from pathlib import Path
 from typing import Optional
 from roboflow import Roboflow
-import os
 import torch
-from torch.utils.data import DataLoader
 from torchvision.transforms import v2 as transforms
 from torchvision.transforms.v2 import functional as TF
 
@@ -226,3 +224,29 @@ def download_roboflow_dataset(config):
     rf = Roboflow(api_key=config.dataset.roboflow_api_key)
     project = rf.workspace(config.dataset.roboflow_workspace).project(config.dataset.project_name)
     dataset = project.version(config.dataset.dataset_version).download("yolov7", location=config.dataset.data_root)
+
+
+
+# Custom dataset for the DINO scorer
+class ImageDataset(Dataset):
+    def __init__(self, images):
+        self.images = images
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        return self.images[idx]
+    
+# Custom dataloader for the DINO scorer
+class ImageDataloader(DataLoader):
+    def __init__(self, dataset, processor, batch_size=16, **kwargs):
+        super().__init__(dataset, collate_fn=self.collate_fn, batch_size=batch_size, **kwargs)
+        self.processor = processor
+
+    def collate_fn(self, examples):
+        images = [example for example in examples]
+        inputs = self.processor(images=images, return_tensors="pt")
+        batch = {
+            "inputs": inputs,
+        }
+        return batch

@@ -81,7 +81,7 @@ class EvaluationConfig:
     eval_epochs: int = 10
     log_attention_maps: bool = False
     num_images_per_prompt: int = 1 # the number of images to generate for each prompt during evaluation (used to compute FID)
-    compute_fid: bool = False
+    compute_dino_score: bool = False
 
 @dataclass
 class WandbConfig:

@@ -5,10 +5,11 @@ from diffusers import (
     StableDiffusionInpaintPipeline,
     logging,
 )
-from typing import List
+from typing import List, Optional
 import wandb
 import gc
 
+from .model import DinoScorer
 from .config import Config
 from .pipeline_attention_inpainting import StableDiffusionAttentionStoreInpaintPipeline
 
@@ -22,6 +23,7 @@ def evaluate_pipe(
         noise_scheduler,
         eval_dataset: torch.utils.data.Dataset,
         config: Config,
+        dino_scorer: Optional[DinoScorer] = None,
         attn_res=(32,32),
     ):
     g_cuda = torch.Generator(device=config.device).manual_seed(config.seed)
@@ -51,14 +53,20 @@ def evaluate_pipe(
                     )
         pipe.set_progress_bar_config(disable=True)
 
-        images_log = {}
+        evaluation_logs = {}
+
+        if config.eval.compute_dino_score:
+            gen_imgs = []
+
         for prompt in config.eval.prompts:
             if config.prompt.global_caption:
                 prompt += ', ' + config.prompt.global_caption
             
-            generations = []
+            gen_imgs_to_log = []
             if config.eval.log_attention_maps:
                 attention_maps = []
+            
+
             
             for strength in config.eval.strengths:
                 for example in eval_dataset:
@@ -78,17 +86,18 @@ def evaluate_pipe(
                     if config.eval.log_attention_maps:
                         kwargs['attn_res'] = attn_res
 
-                    generated_image = pipe(
+                    if config.eval.compute_dino_score:
+                        kwargs['num_images_per_prompt'] = 8
+
+                    generated_images = pipe(
                         generator=g_cuda,
                         num_inference_steps=20,
                         strength=strength,
                         num_images_per_prompt=config.eval.num_images_per_prompt,
                         **kwargs,
-                        ).images[0]
+                        ).images
                     
-                    
-                    image = wandb.Image(generated_image)
-                    generations.append(image)
+                    gen_imgs_to_log.append(wandb.Image(generated_images[0]))
 
                     if config.eval.log_attention_maps:
                         attention_plot = wandb.Image(pipe.save_plot_attention(prompt))
@@ -97,12 +106,25 @@ def evaluate_pipe(
                         del pipe.attention_store
                         gc.collect()
                         torch.cuda.empty_cache()
+                    
+                    if config.eval.compute_dino_score:
+                        for img in generated_images:
+                            gen_imgs.append(img)
 
-            images_log[prompt] = generations
+            # log the generated images for each prompt  
+            evaluation_logs[prompt] = gen_imgs_to_log
+
+            # log the attention maps for each prompt
             if config.eval.log_attention_maps:
-                images_log['ATTN MAP: ' + prompt] = attention_maps
+                evaluation_logs['ATTN MAP: ' + prompt] = attention_maps
+
+        # compute the DINO score for each prompt
+        if config.eval.compute_dino_score:
+            dino_score = dino_scorer(gen_imgs)
+            evaluation_logs['DINO Score'] = dino_score
+            print('DINO Score: ', dino_score)
 
     del pipe
     gc.collect()
     torch.cuda.empty_cache()
-    return images_log
+    return evaluation_logs
