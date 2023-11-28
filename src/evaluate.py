@@ -83,9 +83,6 @@ def evaluate_pipe(
                     if config.eval.log_attention_maps:
                         kwargs['attn_res'] = attn_res
 
-                    if config.eval.compute_dino_score:
-                        kwargs['num_images_per_prompt'] = 8
-
                     generated_images = pipe(
                         generator=g_cuda,
                         num_inference_steps=20,

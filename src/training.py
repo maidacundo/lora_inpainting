@@ -62,7 +62,7 @@ def train(config: Config):
         global_caption=config.prompt.global_caption,
         size=config.dataset.image_size,
         normalize=False,
-        augmentation=False,
+        augmentation=True,
         is_val=True,
     )
 
@@ -201,7 +201,7 @@ def train(config: Config):
     
     mse = torch.nn.MSELoss(reduction='mean')
     ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4)
-    ms_ssim = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4)
+    ms_ssim = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4, win_size=3)
 
     if config.train.criterion == 'mse':
         criterion = mse
