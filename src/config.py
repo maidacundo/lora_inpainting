@@ -69,7 +69,7 @@ class TrainConfig:
     clip_gradients_max_norm: float = 1.0
     use_xformers: bool = False
     checkpoint_folder: str = 'checkpoints'
-    t_mutliplier: int = 0.8
+    t_mutliplier: int = 1 # changed from 0.8 to 1 to test the effect of the timestep on the diffusion
     loss_on_latent: bool = False
 
 @dataclass
