@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from PIL import Image
+from .data import ImageDataset, ImageDataloader
 
 def get_models(
     pretrained_model_name_or_path,
@@ -112,7 +113,48 @@ def get_models(
         tokenizer,
         scheduler,
     )
-        
-        
 
-    
+
+class DinoScorer(nn.Module):
+    def __init__(
+            self, dino_model: str, 
+            ref_images: List[str],
+            ):
+        super().__init__()
+        self.processor = AutoImageProcessor.from_pretrained(dino_model)
+        self.model = AutoModel.from_pretrained(dino_model)
+        
+        self.model.eval()
+        self.model.to('cuda')
+        ref_images_dataset = ImageDataset(
+            images=[Image.open(img) for img in ref_images]
+        )
+        self.ref_images_embedding = self.get_images_embedding(ref_images_dataset)
+
+    def get_images_embedding(self, images_dataset):
+        data_loader = ImageDataloader(images_dataset, self.processor)
+        embeddings = []
+        with torch.no_grad():
+            for batch in data_loader:
+                outputs = self.model(**batch['inputs'].to('cuda'))
+                embeddings.append(outputs.last_hidden_state[:, 0])
+        return torch.cat(embeddings)
+
+    def forward(self, images):
+        if isinstance(images[0], str):
+            images_dataset = ImageDataset(
+                images=[Image.open(img) for img in images]
+            )
+        elif isinstance(images[0], Image.Image):
+            images_dataset = ImageDataset(images=images)
+        else:
+            raise ValueError('images must be a list of str or Image.Image')
+
+        embeddings = self.get_images_embedding(images_dataset)
+
+        # compute all-pairs cosine similarity between ref images and generated images
+        # shape: (num_ref_images, num_generated_images)
+        sim = F.cosine_similarity(embeddings.unsqueeze(0), self.ref_images_embedding.unsqueeze(1), dim=-1)
+
+        # compute the mean of cosine similarity
+        return sim.mean().cpu().numpy()
