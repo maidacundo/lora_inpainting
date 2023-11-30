@@ -74,7 +74,7 @@ def train(config: Config):
         tokenizer=tokenizer,
         label_mapping=label_mapping,
         global_caption=config.prompt.global_caption,
-        size=config.dataset.image_size,
+        size=512,
         normalize=False,
         augmentation=False,
         is_val=True,
@@ -216,6 +216,8 @@ def train(config: Config):
         def criterion(pred, target, alpha=0.3):
             return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
         print('Using MSE + SSIM loss')
+    else:
+        raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
 
     if config.eval.compute_dino_score:
         dino_scorer = DinoScorer('facebook/dino-vits16', valid_dataset.imgs)
@@ -432,7 +434,4 @@ def forward_step(
         target = scheduler.add_noise(latents, target, timesteps)
         model_pred = scheduler.add_noise(latents, model_pred, timesteps)
 
-
     return model_pred, target
-
-

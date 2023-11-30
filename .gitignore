@@ -169,3 +169,4 @@ wandb/
 testing_notebooks/images/*
 testing_notebooks/loras/*
 testing_notebooks/embeddings/*
+testing_notebooks/*
