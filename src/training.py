@@ -23,7 +23,7 @@ from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_da
 from .model import get_models
 from .evaluate import evaluate_pipe
 from .config import Config
-from .losses import HoughTransformSSIM_loss, SSIM_loss, MS_SSIM_loss
+from .losses import HoughTransform_loss, SSIM_loss, MS_SSIM_loss
 from .model import DinoScorer
 
 logging.set_verbosity_error()
@@ -202,7 +202,7 @@ def train(config: Config):
     mse = torch.nn.MSELoss(reduction='mean')
     ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4)
     ms_ssim = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4, win_size=3)
-    l1_hough = HoughTransformSSIM_loss(reduction='mean')
+    l1_hough = HoughTransform_loss(reduction='mean')
 
     if config.train.criterion == 'mse':
         criterion = mse
