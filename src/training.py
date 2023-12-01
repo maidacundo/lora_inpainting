@@ -85,12 +85,14 @@ def train(config: Config):
         batch_size=config.train.train_batch_size,
         tokenizer=tokenizer,
         device=config.device,
+        shuffle=True,
     )
     valid_dataloader = InpaintingDataLoader(
         valid_dataset,
         batch_size=config.train.eval_batch_size,
         tokenizer=tokenizer,
         device=config.device,
+        shuffle=False,
     )
 
     # Freeze all weights
