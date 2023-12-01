@@ -281,14 +281,9 @@ def train(config: Config):
             unet.eval()
             text_encoder.eval()
 
-
             mse_loss = 0.0
             ssim_loss = 0.0
             ms_ssim_loss = 0.0
-
-            # set the number of timesteps to 20 for evaluation
-            num_train_timesteps = noise_scheduler.config.num_train_timesteps
-            noise_scheduler.config.num_train_timesteps = 20
 
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
@@ -307,10 +302,6 @@ def train(config: Config):
                         mse_loss += mse(model_pred.float(), target.float()).detach().item()
                         ssim_loss += ssim(model_pred.float(), target.float()).detach().item()
                         ms_ssim_loss += ms_ssim(model_pred.float(), target.float()).detach().item()
-
-
-            # reset the number of timesteps
-            noise_scheduler.config.num_train_timesteps = num_train_timesteps
 
             logs['val_mse'] = mse_loss / (len(valid_dataloader) * config.eval.eval_epochs)
             logs['val_ssim'] = ssim_loss / (len(valid_dataloader) * config.eval.eval_epochs)
