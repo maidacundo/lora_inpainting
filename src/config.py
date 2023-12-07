@@ -8,7 +8,6 @@ class DatasetConfig:
     dataset_version: int
     data_root: str = 'data'
     image_size: int = 512
-    max_image_size: int = 512
     normalize_images: bool = False # TODO check if this is needed and if it is done in the right way (for now it is set to false)
     scaling_pixels: int = 25
     do_classifier_free_guidance: bool = True
