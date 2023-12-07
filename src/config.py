@@ -11,7 +11,7 @@ class DatasetConfig:
     max_image_size: int = 512
     normalize_images: bool = False # TODO check if this is needed and if it is done in the right way (for now it is set to false)
     scaling_pixels: int = 25
-    do_classifier_free_guidance: bool = False
+    do_classifier_free_guidance: bool = True
 
 @dataclass
 class PromptConfig:
@@ -71,6 +71,8 @@ class TrainConfig:
     checkpoint_folder: str = 'checkpoints'
     t_mutliplier: int = 0.8
     loss_on_latent: bool = False
+    new_tokens: list = field(default_factory=list)
+    initializer_tokens: list = field(default_factory=list)
 
 @dataclass
 class EvaluationConfig:

@@ -32,11 +32,13 @@ def train(config: Config):
     download_roboflow_dataset(config)
     set_random_seed(config.seed)
 
-    text_encoder, vae, unet, tokenizer, noise_scheduler = get_models(
+    text_encoder, vae, unet, tokenizer, noise_scheduler, new_token_ids = get_models(
         config.model.model_path,
         config.model.vae_path,
         device=config.device,
         load_from_safetensor=True,
+        new_tokens=config.train.new_tokens,
+        initializer_tokens=config.train.initializer_tokens,
     )
 
     label_mapping = get_label_mapping(os.path.join(config.dataset.data_root, "data.yaml"))
@@ -95,6 +97,273 @@ def train(config: Config):
         shuffle=False,
     )
 
+    # perform the textual inversion.
+    if len(new_token_ids) > 0:
+        print("New tokens added to tokenizer:")
+        for token_id in new_token_ids:
+            print(f"{tokenizer.decode([token_id])}")
+        print("-" * 50)
+        
+        
+    
+    train_lora(
+        unet,
+        vae,
+        text_encoder,
+        tokenizer,
+        noise_scheduler,
+        train_dataloader,
+        valid_dataloader,
+        valid_dataset,
+        test_dataset,
+        config,
+    )
+    
+
+def train_inversion(
+    new_token_ids,
+    unet,
+    vae,
+    text_encoder,
+    tokenizer,
+    noise_scheduler,
+    train_dataloader,
+    valid_dataloader,
+    valid_dataset,
+    test_dataset,
+    config: Config,
+):  
+    print("Performing textual inversion...")
+    original_embeds = text_encoder.get_input_embeddings().weight.data.clone()
+
+    index_no_updates = torch.arange(len(tokenizer)) != -1 # set all to True
+    for token_id in new_token_ids:
+        index_no_updates[token_id] = False # set new tokens to False
+
+    index_updates = ~index_no_updates
+    
+    # Freeze all weights
+    unet.requires_grad_(False)
+    vae.requires_grad_(False)
+
+    if config.train.gradient_checkpointing:
+        unet.enable_gradient_checkpointing()
+
+    if config.train.use_xformers and is_xformers_available():
+        unet.enable_xformers_memory_efficient_attention()
+
+    params_to_freeze = itertools.chain(
+        text_encoder.text_model.encoder.parameters(),
+        text_encoder.text_model.final_layer_norm.parameters(),
+        text_encoder.text_model.embeddings.position_embedding.parameters(),
+    )
+    for param in params_to_freeze:
+        param.requires_grad = False
+
+    if config.log_wandb:
+        wandb.init(
+            project=config.wandb.project_name, 
+            entity=config.wandb.entity_name,
+            config=config,
+            id=config.wandb.run_name,
+            tags='inversion',
+        )
+
+    params_to_optimize = text_encoder.get_input_embeddings().parameters()
+
+    print_trainable_parameters(text_encoder, "text_encoder")
+
+    optimizer_inversion = optim.AdamW(
+        params_to_optimize,
+        lr=config.train.learning_rate,
+        weight_decay=config.train.weight_decay,
+    )
+
+    if config.train.train_unet:
+        unet.train()
+        
+    if config.train.train_text_encoder:
+        text_encoder.train()
+
+    lr_scheduler_inversion = get_scheduler(
+        config.train.scheduler_type,
+        optimizer=optimizer_inversion,
+        num_warmup_steps=config.train.scheduler_warmup_steps,
+        num_training_steps=config.train.total_steps,
+        num_cycles=config.train.scheduler_num_cycles,
+    )
+
+    if not os.path.exists(config.train.checkpoint_folder):
+        os.makedirs(config.train.checkpoint_folder)
+        print(f"Directory '{config.train.checkpoint_folder}' created.")
+    else:
+        print(f"Directory '{config.train.checkpoint_folder}' already exists.")
+
+    loss_sum = 0.0
+    progress_bar = tqdm(range(config.train.total_steps))
+    progress_bar.set_description("Steps")
+    global_step = 0
+
+    mse = torch.nn.MSELoss(reduction='mean')
+    ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4)
+    ms_ssim = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4, win_size=3)
+
+    if config.train.criterion == 'mse':
+        criterion = mse
+        print('Using MSE loss')
+    elif config.train.criterion == 'ssim':
+        criterion = ssim
+        print('Using SSIM loss')
+    elif config.train.criterion == 'ms_ssim':
+        criterion = ms_ssim
+        print('Using MS-SSIM loss')
+    elif config.train.criterion == 'mse+ssim':
+        def criterion(pred, target, alpha=0.3):
+            return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
+        print('Using MSE + SSIM loss')
+    else:
+        raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
+
+    if config.eval.compute_dino_score:
+        dino_scorer = DinoScorer('facebook/dino-vits16', valid_dataset.imgs)
+
+    for epoch in range(math.ceil(config.train.total_steps / len(train_dataloader))):
+        unet.train()
+        text_encoder.train()
+        for batch in train_dataloader:
+            optimizer_inversion.zero_grad()
+            model_pred, target = forward_step(
+                batch,
+                unet,
+                vae,
+                text_encoder,
+                noise_scheduler,
+                t_mutliplier=config.train.t_mutliplier,
+                mask_temperature=config.train.mask_temperature,
+                loss_on_latent=config.train.loss_on_latent,
+            )
+            train_loss = criterion(model_pred.float(), target.float())
+            train_loss.backward()
+            loss_sum += train_loss.detach().item()
+
+            if config.train.clip_gradients:
+                torch.nn.utils.clip_grad_norm_(
+                    itertools.chain(unet.parameters(), text_encoder.parameters()), 
+                    max_norm=config.train.clip_gradients_max_norm
+                )
+            optimizer_inversion.step()
+            lr_scheduler_inversion.step()
+
+            # normalize the embeddings
+            with torch.no_grad():
+                pre_norm = (
+                    text_encoder.get_input_embeddings()
+                    .weight[index_updates, :]
+                    .norm(dim=-1, keepdim=True)
+                )
+
+                lambda_ = min(1.0, 100 * lr_scheduler_inversion.get_last_lr()[0])
+                text_encoder.get_input_embeddings().weight[index_updates] = F.normalize(
+                    text_encoder.get_input_embeddings().weight[index_updates, :],
+                    dim=-1,) * (pre_norm + lambda_ * (0.4 - pre_norm)
+                )
+                
+
+            current_norm = (
+                text_encoder.get_input_embeddings()
+                .weight[index_updates, :]
+                .norm(dim=-1)
+            )
+
+            text_encoder.get_input_embeddings().weight[
+                index_no_updates
+            ] = original_embeds[index_no_updates]
+
+            print('Pre Norm :', pre_norm)
+            print('Current Norm:', current_norm)
+
+            progress_bar.update(1)
+            logs = {
+                config.train.criterion: train_loss.detach().item(),
+                "lr": lr_scheduler_inversion.get_last_lr()[0],
+            }
+            progress_bar.set_postfix(**logs)
+            global_step += 1
+            
+        if config.log_wandb:
+            logs = {
+                "train_"+config.train.criterion: loss_sum / len(train_dataloader),
+                "lr": lr_scheduler_inversion.get_last_lr()[0],
+            }
+        loss_sum = 0.0
+
+        if epoch % config.train.eval_every_n_epochs == 0:
+            
+            unet.eval()
+            text_encoder.eval()
+
+            mse_loss = 0.0
+            ssim_loss = 0.0
+            ms_ssim_loss = 0.0
+
+            for _ in range(config.eval.eval_epochs):
+                for batch in valid_dataloader:
+                    with torch.no_grad():
+                        model_pred, target = forward_step(
+                                                batch,
+                                                unet,
+                                                vae,
+                                                text_encoder,
+                                                noise_scheduler,
+                                                t_mutliplier=config.train.t_mutliplier,
+                                                mixed_precision=True,
+                                                mask_temperature=config.train.mask_temperature,
+                                                loss_on_latent=False,
+                                            )
+                        mse_loss += mse(model_pred.float(), target.float()).detach().item()
+                        ssim_loss += ssim(model_pred.float(), target.float()).detach().item()
+                        ms_ssim_loss += ms_ssim(model_pred.float(), target.float()).detach().item()
+
+            logs['val_mse'] = mse_loss / (len(valid_dataloader) * config.eval.eval_epochs)
+            logs['val_ssim'] = ssim_loss / (len(valid_dataloader) * config.eval.eval_epochs)
+            logs['val_ms_ssim'] = ms_ssim_loss / (len(valid_dataloader) * config.eval.eval_epochs)
+            
+            loss_sum = 0.0
+            if config.log_wandb:
+                evaluation_logs = evaluate_pipe(
+                    vae=vae,
+                    text_encoder=text_encoder,
+                    tokenizer=tokenizer,
+                    unet=unet,
+                    noise_scheduler=noise_scheduler,
+                    dataset=test_dataset,
+                    config=config,
+                    dino_scorer=dino_scorer if config.eval.compute_dino_score else None,
+                )
+                wandb.log(evaluation_logs, step=global_step)
+            save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{global_step}.safetensors')
+            save_loras(
+                unet if config.train.train_unet else None, 
+                text_encoder if config.train.train_text_encoder else None, 
+                save_path, 
+                config
+            )
+        wandb.log(logs, step=global_step)
+    wandb.finish()
+
+def train_lora(
+    unet,
+    vae,
+    text_encoder,
+    tokenizer,
+    noise_scheduler,
+    train_dataloader,
+    valid_dataloader,
+    valid_dataset,
+    test_dataset,
+    config: Config,
+):
+    print("Training LoRA...")
     # Freeze all weights
     unet.requires_grad_(False)
     vae.requires_grad_(False)
@@ -236,7 +505,6 @@ def train(config: Config):
                 text_encoder,
                 noise_scheduler,
                 t_mutliplier=config.train.t_mutliplier,
-                mixed_precision=True,
                 mask_temperature=config.train.mask_temperature,
                 loss_on_latent=config.train.loss_on_latent,
             )
@@ -284,10 +552,6 @@ def train(config: Config):
             ssim_loss = 0.0
             ms_ssim_loss = 0.0
 
-            # set the number of timesteps to 20 for evaluation
-            num_train_timesteps = noise_scheduler.config.num_train_timesteps
-            noise_scheduler.config.num_train_timesteps = 20
-
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
@@ -305,10 +569,6 @@ def train(config: Config):
                         mse_loss += mse(model_pred.float(), target.float()).detach().item()
                         ssim_loss += ssim(model_pred.float(), target.float()).detach().item()
                         ms_ssim_loss += ms_ssim(model_pred.float(), target.float()).detach().item()
-
-
-            # reset the number of timesteps
-            noise_scheduler.config.num_train_timesteps = num_train_timesteps
 
             logs['val_mse'] = mse_loss / (len(valid_dataloader) * config.eval.eval_epochs)
             logs['val_ssim'] = ssim_loss / (len(valid_dataloader) * config.eval.eval_epochs)
