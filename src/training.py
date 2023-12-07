@@ -424,7 +424,7 @@ def forward_step(
             mode="nearest",
         )
 
-        mask = mask.pow(mask_temperature)
+        mask = (mask + 0.01).pow(mask_temperature)
 
         mask = mask / mask.max()
 

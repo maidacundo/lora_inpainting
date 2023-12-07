@@ -31,7 +31,7 @@ class LoraConfig:
     unet_adapter_name: str = 'lora_unet'
     text_encoder_adapter_name: str = 'lora_te' 
     unet_target_modules: list = field(default_factory=lambda: ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"]) #, "proj_in", "conv1", "conv2"]
-    text_encoder_target_modules: list = field(default_factory=lambda: ["q_proj", "v_proj", "k_proj", "out_proj", "mlp.fc1", "mlp.fc2"])
+    text_encoder_target_modules: list = field(default_factory=lambda: ["q_proj", "v_proj", "k_proj", "out_proj"])
     # "to_q", "to_v", "to_k", "to_out.0" are the names of the modules in attention layers
     # "ff.net.0.proj" is the name of the linear in the GEGLU activation
     # "proj_in", "conv1", "conv2" are the names of the modules in the resnet block
@@ -51,7 +51,7 @@ class TrainConfig:
     unet_lr: float = 1e-4
     text_encoder_lr: float = 1e-4
     mask_temperature: float = 1.0
-    criterion: str = 'mse'
+    criterion: str = 'mse+ssim'
     eval_every_n_epochs: int = 5
     num_checkpoint_limit: int = 5 # TODO use this and delete the previous checkpoints (if needed, not sure its a good feature)
     mixed_precision: str = 'no'
