@@ -293,3 +293,15 @@ def save_loras(
     
     save_file(weights, save_path, metadata)
 
+def save_textual_inversion(
+    tokens,
+    tokens_ids,
+    text_encoder,
+    save_path = "./textual_inversion.safetensors",
+):  
+    embeddings = {}
+    for tok, tok_id in zip(tokens, tokens_ids):
+        embedding = text_encoder.get_input_embeddings().weight[tok_id]
+        embeddings[tok] = embedding.detach().cpu()
+
+    save_file(embeddings, save_path)

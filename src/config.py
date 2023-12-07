@@ -38,7 +38,7 @@ class LoraConfig:
 
     # "q_proj", "v_proj", "k_proj", "out_proj" are the names of the modules in the text encoder attention layers
     # "mlp.fc1", "mlp.fc2" are the names of the modules in the text encoder mlp that produce the embeddings
-    output_format: str = 'peft' # can be either 'kohya_ss' or 'peft', 'kohya_ss' is compatible with A1111
+    output_format: str = 'kohya_ss' # can be either 'kohya_ss' or 'peft', 'kohya_ss' is compatible with A1111
 
 @dataclass
 class TrainConfig:

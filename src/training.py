@@ -4,6 +4,7 @@ import wandb
 import math
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import gc
 
 import numpy as np
 import torch
@@ -18,7 +19,7 @@ from diffusers.optimization import get_scheduler
 from peft import LoraConfig, LoraModel
 from controlnet_aux import MLSDdetector
 
-from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras
+from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras, save_textual_inversion
 from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset
 from .model import get_models
 from .evaluate import evaluate_pipe
@@ -102,6 +103,20 @@ def train(config: Config):
         print("New tokens added to tokenizer:")
         for token_id in new_token_ids:
             print(f"{tokenizer.decode([token_id])}")
+
+        train_inversion(
+            new_token_ids,
+            unet,
+            vae,
+            text_encoder,
+            tokenizer,
+            noise_scheduler,
+            train_dataloader,
+            valid_dataloader,
+            valid_dataset,
+            test_dataset,
+            config,
+        )
         print("-" * 50)
         
         
@@ -268,19 +283,18 @@ def train_inversion(
                     dim=-1,) * (pre_norm + lambda_ * (0.4 - pre_norm)
                 )
                 
+                current_norm = (
+                    text_encoder.get_input_embeddings()
+                    .weight[index_updates, :]
+                    .norm(dim=-1)
+                )
 
-            current_norm = (
-                text_encoder.get_input_embeddings()
-                .weight[index_updates, :]
-                .norm(dim=-1)
-            )
+                text_encoder.get_input_embeddings().weight[
+                    index_no_updates
+                ] = original_embeds[index_no_updates]
 
-            text_encoder.get_input_embeddings().weight[
-                index_no_updates
-            ] = original_embeds[index_no_updates]
-
-            print('Pre Norm :', pre_norm)
-            print('Current Norm:', current_norm)
+                print('Pre Norm :', pre_norm)
+                print('Current Norm:', current_norm)
 
             progress_bar.update(1)
             logs = {
@@ -342,15 +356,19 @@ def train_inversion(
                 )
                 wandb.log(evaluation_logs, step=global_step)
             save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_ti_{global_step}.safetensors')
-            """
-            save_loras(
-                unet if config.train.train_unet else None, 
-                text_encoder if config.train.train_text_encoder else None, 
-                save_path, 
-                config
+            
+            save_textual_inversion(
+                config.train.new_tokens,
+                new_token_ids, 
+                text_encoder,
+                save_path,
             )
-            """
+            
         wandb.log(logs, step=global_step)
+    del optimizer_inversion
+    del lr_scheduler_inversion
+    gc.collect()
+    torch.cuda.empty_cache()
     wandb.finish()
 
 def train_lora(
