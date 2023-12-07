@@ -47,7 +47,7 @@ class TrainConfig:
     eval_batch_size: int = 1
     train_unet: bool = True
     train_text_encoder: bool = True
-    text_encoder_train_ratio = 1
+    text_encoder_train_ratio: float = 1
     unet_lr: float = 1e-4
     text_encoder_lr: float = 1e-4
     mask_temperature: float = 1.0
