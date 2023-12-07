@@ -60,7 +60,8 @@ class TrainConfig:
     scheduler_type: str = 'cosine_with_restarts'
     scheduler_num_cycles: int = 4
     scheduler_warmup_steps: int = 500
-    total_steps: int = 4000
+    lora_total_steps: int = 4000
+    ti_total_steps: int = 500
     optimizer: str = 'adamw' # TODO can be both adamw or lion optimizers (in order to test lion convergence and styling capabilities)
     learning_rate: float = 1e-4
     weight_decay: float = 1e-3
@@ -72,6 +73,7 @@ class TrainConfig:
     loss_on_latent: bool = False
     new_tokens: list = field(default_factory=list)
     initializer_tokens: list = field(default_factory=list)
+    load_textual_embeddings: str = None
 
 @dataclass
 class EvaluationConfig:

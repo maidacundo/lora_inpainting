@@ -1,4 +1,5 @@
 import random
+from typing import List, Optional, Union
 import torch
 import numpy as np
 import cv2
@@ -305,3 +306,53 @@ def save_textual_inversion(
         embeddings[tok] = embedding.detach().cpu()
 
     save_file(embeddings, save_path)
+
+def apply_learned_embed_in_clip(
+    learned_embeds,
+    text_encoder,
+    tokenizer,
+    token: Optional[Union[str, List[str]]] = None,
+    idempotent=False,
+):
+    if isinstance(token, str):
+        trained_tokens = [token]
+    elif isinstance(token, list):
+        assert len(learned_embeds.keys()) == len(
+            token
+        ), "The number of tokens and the number of embeds should be the same"
+        trained_tokens = token
+    else:
+        trained_tokens = list(learned_embeds.keys())
+
+    for token in trained_tokens:
+        print(token)
+        embeds = learned_embeds[token]
+
+        # cast to dtype of text_encoder
+        num_added_tokens = tokenizer.add_tokens(token)
+
+        i = 1
+        if not idempotent:
+            while num_added_tokens == 0:
+                print(f"The tokenizer already contains the token {token}.")
+                token = f"{token[:-1]}-{i}>"
+                print(f"Attempting to add the token {token}.")
+                num_added_tokens = tokenizer.add_tokens(token)
+                i += 1
+        elif num_added_tokens == 0 and idempotent:
+            print(f"The tokenizer already contains the token {token}.")
+            print(f"Replacing {token} embedding.")
+
+        # resize the token embeddings
+        text_encoder.resize_token_embeddings(len(tokenizer))
+
+        # get the id for the token and assign the embeds
+        token_id = tokenizer.convert_tokens_to_ids(token)
+        text_encoder.get_input_embeddings().weight.data[token_id] = embeds
+    return token
+
+def load_textual_inversion(
+    save_path = "./textual_inversion.safetensors",
+):  
+    embeddings = torch.load(save_path)
+    return embeddings

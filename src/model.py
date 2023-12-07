@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import re
 
 from transformers import (
@@ -24,8 +24,8 @@ from .data import ImageDataset, ImageDataloader
 def get_models(
     pretrained_model_name_or_path: str,
     pretrained_vae_name_or_path: str,
-    new_tokens: List[str],
-    initializer_tokens: List[str],
+    new_tokens: Optional[List[str]] = None,
+    initializer_tokens: Optional[List[str]] = None,
     device: str = "cuda",
     load_from_safetensor=False,
 ) -> [CLIPTextModel, AutoencoderKL, UNet2DConditionModel, CLIPTokenizer, DDIMScheduler]:
@@ -70,11 +70,12 @@ def get_models(
             subfolder="scheduler",
         )
 
-    print('initial tokens:', len(tokenizer))
+    
     
     # Add placeholder tokens to tokenizer
     new_token_ids = []
     if new_tokens:
+        print('initial tokens:', len(tokenizer))
         for token, init_tok in zip(new_tokens, initializer_tokens):
             num_added_tokens = tokenizer.add_tokens(token)
             if num_added_tokens == 0:
@@ -99,7 +100,7 @@ def get_models(
                     torch.randn_like(token_embeds[0]) * sigma_val
                 )
                 print(
-                    f"Initialized {token} with random noise (sigma={sigma_val}), empirically {token_embeds[new_token_id].mean().item():.3f} +- {token_embeds[placeholder_token_id].std().item():.3f}"
+                    f"Initialized {token} with random noise (sigma={sigma_val}), empirically {token_embeds[new_token_id].mean().item():.3f} +- {token_embeds[new_tokens].std().item():.3f}"
                 )
                 print(f"Norm : {token_embeds[new_token_id].norm():.4f}")
 
@@ -125,7 +126,6 @@ def get_models(
         scheduler,
         new_token_ids,
     )
-
 
 class DinoScorer(nn.Module):
     def __init__(

@@ -17,9 +17,10 @@ from diffusers import StableDiffusionInpaintPipeline, logging
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.optimization import get_scheduler
 from peft import LoraConfig, LoraModel
-from controlnet_aux import MLSDdetector
+from controlnet_aux import MLSDdetector 
 
 from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras, save_textual_inversion
+from .ti_utils import replace_textual_inversion, load_textual_inversion
 from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset
 from .model import get_models
 from .evaluate import evaluate_pipe
@@ -98,8 +99,17 @@ def train(config: Config):
         shuffle=False,
     )
 
+    dino_scorer = None
+    if config.eval.compute_dino_score:
+        dino_scorer = DinoScorer('facebook/dino-vits16', valid_dataset.imgs)
+    
+
     # perform the textual inversion.
     if len(new_token_ids) > 0:
+
+        if config.train.load_textual_embeddings:
+            raise ValueError("Cannot load textual embeddings when new tokens are added.")
+
         print("New tokens added to tokenizer:")
         for token_id in new_token_ids:
             print(f"{tokenizer.decode([token_id])}")
@@ -115,11 +125,40 @@ def train(config: Config):
             valid_dataloader,
             valid_dataset,
             test_dataset,
+            dino_scorer,
             config,
         )
         print("-" * 50)
+
+        while True:
+            selected_checkpoint = input("Select checkpoint to load: (type 'exit' to skip and continue with last checkpoint)")
+            if selected_checkpoint == 'exit':
+                break
+            selected_checkpoint = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_ti_{selected_checkpoint}.safetensors')
+            if os.path.exists(selected_checkpoint):
+                tokenizer, text_encoder = replace_textual_inversion(
+                    selected_checkpoint,
+                    config.train.new_tokens,
+                    new_token_ids,
+                    tokenizer,
+                    text_encoder,
+                )
+                print("Textual inversion loaded successfully.")
+                print("Using checkpoint:", selected_checkpoint)
+                break
+            print("Checkpoint not found. Please try again.")
         
-        
+        print("-" * 50)
+
+    if config.train.load_textual_embeddings and len(new_token_ids) == 0:
+        tokenizer, text_encoder, vae, unet, noise_scheduler = load_textual_inversion(
+            config.train.load_textual_embeddings,
+            tokenizer,
+            text_encoder,
+            vae,
+            unet,
+            noise_scheduler,
+        )
     
     train_lora(
         unet,
@@ -131,6 +170,7 @@ def train(config: Config):
         valid_dataloader,
         valid_dataset,
         test_dataset,
+        dino_scorer,
         config,
     )
     
@@ -144,8 +184,8 @@ def train_inversion(
     noise_scheduler,
     train_dataloader,
     valid_dataloader,
-    valid_dataset,
     test_dataset,
+    dino_scorer,
     config: Config,
 ):  
     print("Performing textual inversion...")
@@ -156,6 +196,11 @@ def train_inversion(
         index_no_updates[token_id] = False # set new tokens to False
 
     index_updates = ~index_no_updates
+
+    # print the index equal to True 
+    print("Tokens that will be updated:")
+    for i, _ in enumerate(index_updates):
+        print(i)
     
     # Freeze all weights
     unet.requires_grad_(False)
@@ -204,7 +249,7 @@ def train_inversion(
         config.train.scheduler_type,
         optimizer=optimizer_inversion,
         num_warmup_steps=config.train.scheduler_warmup_steps,
-        num_training_steps=config.train.total_steps,
+        num_training_steps=config.train.ti_total_steps,
         num_cycles=config.train.scheduler_num_cycles,
     )
 
@@ -215,7 +260,7 @@ def train_inversion(
         print(f"Directory '{config.train.checkpoint_folder}' already exists.")
 
     loss_sum = 0.0
-    progress_bar = tqdm(range(config.train.total_steps))
+    progress_bar = tqdm(range(config.train.ti_total_steps))
     progress_bar.set_description("Steps")
     global_step = 0
 
@@ -239,10 +284,7 @@ def train_inversion(
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
 
-    if config.eval.compute_dino_score:
-        dino_scorer = DinoScorer('facebook/dino-vits16', valid_dataset.imgs)
-
-    for epoch in range(math.ceil(config.train.total_steps / len(train_dataloader))):
+    for epoch in range(math.ceil(config.train.ti_total_steps / len(train_dataloader))):
         unet.train()
         text_encoder.train()
         for batch in train_dataloader:
@@ -283,18 +325,9 @@ def train_inversion(
                     dim=-1,) * (pre_norm + lambda_ * (0.4 - pre_norm)
                 )
                 
-                current_norm = (
-                    text_encoder.get_input_embeddings()
-                    .weight[index_updates, :]
-                    .norm(dim=-1)
-                )
-
                 text_encoder.get_input_embeddings().weight[
                     index_no_updates
                 ] = original_embeds[index_no_updates]
-
-                print('Pre Norm :', pre_norm)
-                print('Current Norm:', current_norm)
 
             progress_bar.update(1)
             logs = {
@@ -352,7 +385,7 @@ def train_inversion(
                     noise_scheduler=noise_scheduler,
                     dataset=test_dataset,
                     config=config,
-                    dino_scorer=dino_scorer if config.eval.compute_dino_score else None,
+                    dino_scorer=dino_scorer,
                 )
                 wandb.log(evaluation_logs, step=global_step)
             save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_ti_{global_step}.safetensors')
@@ -379,8 +412,8 @@ def train_lora(
     noise_scheduler,
     train_dataloader,
     valid_dataloader,
-    valid_dataset,
     test_dataset,
+    dino_scorer,
     config: Config,
 ):
     print("Training LoRA...")
@@ -470,7 +503,7 @@ def train_lora(
         config.train.scheduler_type,
         optimizer=optimizer_lora,
         num_warmup_steps=config.train.scheduler_warmup_steps,
-        num_training_steps=config.train.total_steps,
+        num_training_steps=config.train.lora_total_steps,
         num_cycles=config.train.scheduler_num_cycles,
     )
 
@@ -481,14 +514,14 @@ def train_lora(
         print(f"Directory '{config.train.checkpoint_folder}' already exists.")
 
     loss_sum = 0.0
-    progress_bar = tqdm(range(config.train.total_steps))
+    progress_bar = tqdm(range(config.train.lora_total_steps))
     progress_bar.set_description("Steps")
     global_step = 0
 
     if config.train.text_encoder_train_ratio < 1.0:
-        text_encoder_steps = math.ceil(config.train.total_steps * config.train.text_encoder_train_ratio)
+        text_encoder_steps = math.ceil(config.train.lora_total_steps * config.train.text_encoder_train_ratio)
     else:
-        text_encoder_steps = config.train.total_steps
+        text_encoder_steps = config.train.lora_total_steps
     
     mse = torch.nn.MSELoss(reduction='mean')
     ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4)
@@ -510,10 +543,7 @@ def train_lora(
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
 
-    if config.eval.compute_dino_score:
-        dino_scorer = DinoScorer('facebook/dino-vits16', valid_dataset.imgs)
-
-    for epoch in range(math.ceil(config.train.total_steps / len(train_dataloader))):
+    for epoch in range(math.ceil(config.train.lora_total_steps / len(train_dataloader))):
         unet.train()
         text_encoder.train()
         for batch in train_dataloader:
@@ -604,7 +634,7 @@ def train_lora(
                     noise_scheduler=noise_scheduler,
                     dataset=test_dataset,
                     config=config,
-                    dino_scorer=dino_scorer if config.eval.compute_dino_score else None,
+                    dino_scorer=dino_scorer,
                 )
                 wandb.log(evaluation_logs, step=global_step)
             save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{global_step}.safetensors')
