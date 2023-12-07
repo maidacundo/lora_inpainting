@@ -341,13 +341,15 @@ def train_inversion(
                     dino_scorer=dino_scorer if config.eval.compute_dino_score else None,
                 )
                 wandb.log(evaluation_logs, step=global_step)
-            save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{global_step}.safetensors')
+            save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_ti_{global_step}.safetensors')
+            """
             save_loras(
                 unet if config.train.train_unet else None, 
                 text_encoder if config.train.train_text_encoder else None, 
                 save_path, 
                 config
             )
+            """
         wandb.log(logs, step=global_step)
     wandb.finish()
 
