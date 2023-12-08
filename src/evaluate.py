@@ -38,7 +38,7 @@ def evaluate_pipe(
                         unet=unet,
                         scheduler=noise_scheduler,
                         safety_checker=None,
-                        feature_extractor=None, 
+                        feature_extractor=None,
                     )
         else:
             pipe = StableDiffusionInpaintPipeline(
