@@ -73,6 +73,7 @@ class TrainConfig:
     new_tokens: list = field(default_factory=list)
     initializer_tokens: list = field(default_factory=list)
     load_textual_embeddings: str = None
+    use_timestep_scheduler: bool = False
 
 @dataclass
 class EvaluationConfig:

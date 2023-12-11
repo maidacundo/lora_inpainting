@@ -14,6 +14,8 @@ from diffusers.utils.import_utils import is_xformers_available
 from diffusers.optimization import get_scheduler
 from peft import LoraConfig, LoraModel
 
+from timesteps_scheduler import TimestepScheduler
+
 from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras, save_textual_inversion
 from .ti_utils import replace_textual_inversion, load_textual_inversion
 from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_dataset
@@ -102,6 +104,10 @@ def train(config: Config):
     if config.eval.compute_fid_score:
         fid_scorer = FIDScorer(valid_dataset.imgs)
 
+    timesteps_scheduler = None
+    if config.train.use_timestep_scheduler:
+        timesteps_scheduler = TimestepScheduler()
+
     # perform the textual inversion.
     if len(new_token_ids) > 0:
 
@@ -124,6 +130,7 @@ def train(config: Config):
             test_dataset,
             dino_scorer,
             fid_scorer,
+            timesteps_scheduler,
             config,
         )
         print("-" * 50)
@@ -169,6 +176,7 @@ def train(config: Config):
         test_dataset,
         dino_scorer,
         fid_scorer,
+        timesteps_scheduler,
         config,
     )
 
@@ -184,6 +192,7 @@ def train_inversion(
     test_dataset,
     dino_scorer,
     fid_scorer,
+    timesteps_scheduler,
     config: Config,
 ):  
     print("Performing textual inversion...")
@@ -291,6 +300,7 @@ def train_inversion(
                 t_mutliplier=config.train.t_mutliplier,
                 mask_temperature=config.train.mask_temperature,
                 loss_on_latent=config.train.loss_on_latent,
+                timesteps_scheduler=timesteps_scheduler,
             )
             train_loss = criterion(model_pred.float(), target.float())
             train_loss.backward()
@@ -405,7 +415,6 @@ def train_inversion(
         save_path,
     )
 
-
 def train_lora(
     unet,
     vae,
@@ -417,6 +426,7 @@ def train_lora(
     test_dataset,
     dino_scorer,
     fid_scorer,
+    timesteps_scheduler,
     config: Config,
 ):
     print("Training LoRA...")
@@ -551,7 +561,7 @@ def train_lora(
         text_encoder.train()
         for batch in train_dataloader:
             optimizer_lora.zero_grad()
-            model_pred, target = forward_step(
+            model_pred, target, _ = forward_step(
                 batch,
                 unet,
                 vae,
@@ -560,6 +570,7 @@ def train_lora(
                 t_mutliplier=config.train.t_mutliplier,
                 mask_temperature=config.train.mask_temperature,
                 loss_on_latent=config.train.loss_on_latent,
+                timesteps_scheduler=timesteps_scheduler,
             )
             train_loss = criterion(model_pred.float(), target.float())
             train_loss.backward()
@@ -608,17 +619,17 @@ def train_lora(
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        model_pred, target = forward_step(
-                                                batch,
-                                                unet,
-                                                vae,
-                                                text_encoder,
-                                                noise_scheduler,
-                                                t_mutliplier=config.train.t_mutliplier,
-                                                mixed_precision=False,
-                                                mask_temperature=config.train.mask_temperature,
-                                                loss_on_latent=False,
-                                            )
+                        model_pred, target. _ = forward_step(
+                                                    batch,
+                                                    unet,
+                                                    vae,
+                                                    text_encoder,
+                                                    noise_scheduler,
+                                                    t_mutliplier=config.train.t_mutliplier,
+                                                    mixed_precision=False,
+                                                    mask_temperature=config.train.mask_temperature,
+                                                    loss_on_latent=False,
+                                                )
                         mse_loss += mse(model_pred.float(), target.float()).detach().item()
                         ssim_loss += ssim(model_pred.float(), target.float()).detach().item()
                         ms_ssim_loss += ms_ssim(model_pred.float(), target.float()).detach().item()
@@ -670,6 +681,7 @@ def forward_step(
     mask_temperature=1.0,
     vae_scale_factor=8,
     loss_on_latent=False,
+    timesteps_scheduler=None,
 ):
     weight_dtype = torch.float32
 
@@ -695,12 +707,21 @@ def forward_step(
     noise = torch.randn_like(latents)
     bsz = latents.shape[0]
 
-    timesteps = torch.randint(
-        0,
-        int(scheduler.config.num_train_timesteps * t_mutliplier),
-        (bsz,),
-        device=latents.device,
-    )
+    if timesteps_scheduler is not None:
+        timesteps_bounds = timesteps_scheduler.get_timesteps_bounds()
+        timesteps = torch.randint(
+            timesteps_bounds[0],
+            timesteps_bounds[1],
+            (bsz,),
+            device=latents.device,
+        )
+    else:
+        timesteps = torch.randint(
+            0,
+            int(scheduler.config.num_train_timesteps * t_mutliplier),
+            (bsz,),
+            device=latents.device,
+        )
     timesteps = timesteps.long()
 
     noisy_latents = scheduler.add_noise(latents, noise, timesteps)
@@ -758,4 +779,4 @@ def forward_step(
         target = scheduler.add_noise(latents, target, timesteps)
         model_pred = scheduler.add_noise(latents, model_pred, timesteps)
 
-    return model_pred, target
+    return model_pred, target, timesteps
