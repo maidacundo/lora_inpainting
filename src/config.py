@@ -58,9 +58,9 @@ class TrainConfig:
     gradient_accumulation_steps: int = 1
     use_scheduler: bool = True
     scheduler_type: str = 'cosine_with_restarts'
-    scheduler_num_cycles: int = 4
+    scheduler_num_cycles: int = 1
     scheduler_warmup_steps: int = 500
-    lora_total_steps: int = 4000
+    lora_total_steps: int = 2000
     ti_total_steps: int = 500
     optimizer: str = 'adamw' # TODO can be both adamw or lion optimizers (in order to test lion convergence and styling capabilities)
     learning_rate: float = 1e-4
@@ -82,8 +82,9 @@ class EvaluationConfig:
     strengths: list = field(default_factory=lambda: [1])
     eval_epochs: int = 10
     log_attention_maps: bool = False
-    num_images_per_prompt: int = 8 # the number of images to generate for each prompt during evaluation (used to compute FID)
+    num_images_per_prompt: int = 12 # the number of images to generate for each prompt during evaluation (used to compute FID)
     compute_dino_score: bool = True
+    compute_fid_score: bool = True
 
 @dataclass
 class WandbConfig:

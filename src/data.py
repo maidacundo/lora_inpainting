@@ -241,13 +241,16 @@ class ImageDataset(Dataset):
     
 # Custom dataloader for the DINO scorer
 class ImageDataloader(DataLoader):
-    def __init__(self, dataset, processor, batch_size=16, **kwargs):
+    def __init__(self, dataset, processor=None, batch_size=16, **kwargs):
         super().__init__(dataset, collate_fn=self.collate_fn, batch_size=batch_size, **kwargs)
         self.processor = processor
 
     def collate_fn(self, examples):
         images = [example for example in examples]
-        inputs = self.processor(images=images, return_tensors="pt")
+        if self.processor is not None:
+            inputs = self.processor(images=images, return_tensors="pt")
+        else:
+            inputs = torch.stack(images).to(memory_format=torch.contiguous_format).float()
         batch = {
             "inputs": inputs,
         }

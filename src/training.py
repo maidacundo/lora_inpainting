@@ -3,21 +3,16 @@ import itertools
 import wandb
 import math
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 import gc
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.checkpoint
-from torch.autograd import Variable
-
-from diffusers import StableDiffusionInpaintPipeline, logging
+from diffusers import logging
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.optimization import get_scheduler
 from peft import LoraConfig, LoraModel
-from controlnet_aux import MLSDdetector 
 
 from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras, save_textual_inversion
 from .ti_utils import replace_textual_inversion, load_textual_inversion
@@ -26,7 +21,7 @@ from .model import get_models
 from .evaluate import evaluate_pipe
 from .config import Config
 from .losses import SSIM_loss, MS_SSIM_loss
-from .model import DinoScorer
+from .metrics import DinoScorer, FIDScorer
 
 logging.set_verbosity_error()
 
@@ -103,6 +98,9 @@ def train(config: Config):
     if config.eval.compute_dino_score:
         dino_scorer = DinoScorer('facebook/dino-vits16', valid_dataset.imgs)
     
+    fid_scorer = None
+    if config.eval.compute_fid_score:
+        fid_scorer = FIDScorer(valid_dataset.imgs)
 
     # perform the textual inversion.
     if len(new_token_ids) > 0:
@@ -123,9 +121,9 @@ def train(config: Config):
             noise_scheduler,
             train_dataloader,
             valid_dataloader,
-            valid_dataset,
             test_dataset,
             dino_scorer,
+            fid_scorer,
             config,
         )
         print("-" * 50)
@@ -168,12 +166,11 @@ def train(config: Config):
         noise_scheduler,
         train_dataloader,
         valid_dataloader,
-        valid_dataset,
         test_dataset,
         dino_scorer,
+        fid_scorer,
         config,
     )
-    
 
 def train_inversion(
     new_token_ids,
@@ -186,6 +183,7 @@ def train_inversion(
     valid_dataloader,
     test_dataset,
     dino_scorer,
+    fid_scorer,
     config: Config,
 ):  
     print("Performing textual inversion...")
@@ -196,11 +194,6 @@ def train_inversion(
         index_no_updates[token_id] = False # set new tokens to False
 
     index_updates = ~index_no_updates
-
-    # print the index equal to True 
-    print("Tokens that will be updated:")
-    for i, _ in enumerate(index_updates):
-        print(i)
     
     # Freeze all weights
     unet.requires_grad_(False)
@@ -386,6 +379,7 @@ def train_inversion(
                     dataset=test_dataset,
                     config=config,
                     dino_scorer=dino_scorer,
+                    fid_scorer=fid_scorer,
                 )
                 wandb.log(evaluation_logs, step=global_step)
             save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_ti_{global_step}.safetensors')
@@ -414,6 +408,7 @@ def train_lora(
     valid_dataloader,
     test_dataset,
     dino_scorer,
+    fid_scorer,
     config: Config,
 ):
     print("Training LoRA...")
@@ -635,6 +630,7 @@ def train_lora(
                     dataset=test_dataset,
                     config=config,
                     dino_scorer=dino_scorer,
+                    fid_scorer=fid_scorer,
                 )
                 wandb.log(evaluation_logs, step=global_step)
             save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{global_step}.safetensors')

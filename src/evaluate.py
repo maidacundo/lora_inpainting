@@ -9,7 +9,7 @@ from typing import List, Optional
 import wandb
 import gc
 
-from .model import DinoScorer
+from .metrics import DinoScorer, FIDScorer
 from .config import Config
 from .pipeline_attention_inpainting import StableDiffusionAttentionStoreInpaintPipeline
 
@@ -24,6 +24,7 @@ def evaluate_pipe(
         dataset: torch.utils.data.Dataset,
         config: Config,
         dino_scorer: Optional[DinoScorer] = None,
+        fid_scorer: Optional[FIDScorer] = None,
         attn_res=(32,32),
     ):
     g_cuda = torch.Generator(device=config.device).manual_seed(config.seed)
@@ -101,7 +102,7 @@ def evaluate_pipe(
                         gc.collect()
                         torch.cuda.empty_cache()
                     
-                    if config.eval.compute_dino_score:
+                    if dino_scorer or fid_scorer:
                         for img in generated_images:
                             gen_imgs.append(img)
 
@@ -113,10 +114,16 @@ def evaluate_pipe(
                 evaluation_logs['ATTN MAP: ' + prompt] = attention_maps
 
         # compute the DINO score for each prompt
-        if config.eval.compute_dino_score:
+        if dino_scorer:
             dino_score = dino_scorer(gen_imgs)
             evaluation_logs['DINO Score'] = dino_score
-            print('DINO Score: ', dino_score)
+            print('DINO Score:', dino_score)
+
+        # compute the FID score for each prompt
+        if fid_scorer:
+            fid_score = fid_scorer(gen_imgs)
+            evaluation_logs['FID Score'] = fid_score
+            print('FID Score:', fid_score)
 
     del pipe
     gc.collect()

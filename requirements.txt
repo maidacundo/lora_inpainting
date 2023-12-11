@@ -8,3 +8,5 @@ ml-collections
 controlnet-aux
 pytorch-msssim
 optuna
+torchmetrics
+torchmetrics[image]
