@@ -74,18 +74,24 @@ class FIDScorer(nn.Module):
             transforms.Resize(256, interpolation=3, antialias=True),
             transforms.CenterCrop(224),
         ])
+        self.__post_init__()
     
     def __post_init__(self):
         ref_imgs_tensor = self.img_to_tensor(self.ref_images)
         self.fid_model.update(ref_imgs_tensor, real=True)
 
-    def img_to_tensor(self, img_paths):
-        imgs = []
-        for path in img_paths:
-            img = Image.open(path)
+    def img_to_tensor(self, imgs):
+        imgs_list = []
+        for img in imgs:
+            if isinstance(img, str):
+                img = Image.open(img)
+            elif isinstance(img, Image.Image):
+                pass
+            else:
+                raise ValueError('images must be a list of str or Image.Image')
             img = self.transform(img)
-            imgs.append(img)
-        return torch.stack(imgs)
+            imgs_list.append(img)
+        return torch.stack(imgs_list)
         
     def forward(self, images):
         imgs_tensor = self.img_to_tensor(images)

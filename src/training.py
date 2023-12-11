@@ -356,7 +356,7 @@ def train_inversion(
                                                 text_encoder,
                                                 noise_scheduler,
                                                 t_mutliplier=config.train.t_mutliplier,
-                                                mixed_precision=True,
+                                                mixed_precision=False,
                                                 mask_temperature=config.train.mask_temperature,
                                                 loss_on_latent=False,
                                             )
@@ -368,7 +368,6 @@ def train_inversion(
             logs['val_ssim'] = ssim_loss / (len(valid_dataloader) * config.eval.eval_epochs)
             logs['val_ms_ssim'] = ms_ssim_loss / (len(valid_dataloader) * config.eval.eval_epochs)
             
-            loss_sum = 0.0
             if config.log_wandb:
                 evaluation_logs = evaluate_pipe(
                     vae=vae,
@@ -397,6 +396,15 @@ def train_inversion(
     gc.collect()
     torch.cuda.empty_cache()
     wandb.finish()
+
+    save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_ti_{global_step}.safetensors')
+    save_textual_inversion(
+        config.train.new_tokens,
+        new_token_ids, 
+        text_encoder,
+        save_path,
+    )
+
 
 def train_lora(
     unet,
@@ -607,7 +615,7 @@ def train_lora(
                                                 text_encoder,
                                                 noise_scheduler,
                                                 t_mutliplier=config.train.t_mutliplier,
-                                                mixed_precision=True,
+                                                mixed_precision=False,
                                                 mask_temperature=config.train.mask_temperature,
                                                 loss_on_latent=False,
                                             )
@@ -642,6 +650,14 @@ def train_lora(
             )
         wandb.log(logs, step=global_step)
     wandb.finish()
+
+    save_path = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_lora_{global_step}.safetensors')
+    save_loras(
+        unet if config.train.train_unet else None,
+        text_encoder if config.train.train_text_encoder else None,
+        save_path,
+        config
+    )
 
 def forward_step(
     batch,

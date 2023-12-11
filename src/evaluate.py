@@ -31,8 +31,8 @@ def evaluate_pipe(
 
     with torch.cuda.amp.autocast(dtype=torch.float16), torch.no_grad():
 
-        if config.eval.log_attention_maps:
-            pipe = StableDiffusionAttentionStoreInpaintPipeline(
+        if config.eval.log_attention_maps and config.eval.compute_dino_score: # TODO finish this
+            pipe_attention = StableDiffusionAttentionStoreInpaintPipeline(
                         vae=vae,
                         text_encoder=text_encoder,
                         tokenizer=tokenizer,

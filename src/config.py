@@ -52,7 +52,6 @@ class TrainConfig:
     mask_temperature: float = 1.0
     criterion: str = 'mse+ssim'
     eval_every_n_epochs: int = 5
-    num_checkpoint_limit: int = 5 # TODO use this and delete the previous checkpoints (if needed, not sure its a good feature)
     mixed_precision: str = 'no'
     gradient_checkpointing: bool = False
     gradient_accumulation_steps: int = 1
@@ -62,7 +61,7 @@ class TrainConfig:
     scheduler_warmup_steps: int = 500
     lora_total_steps: int = 2000
     ti_total_steps: int = 500
-    optimizer: str = 'adamw' # TODO can be both adamw or lion optimizers (in order to test lion convergence and styling capabilities)
+    optimizer: str = 'adamw'
     learning_rate: float = 1e-4
     weight_decay: float = 1e-3
     clip_gradients: bool = True

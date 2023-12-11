@@ -60,7 +60,7 @@ class InpaintLoraDataset(Dataset):
 
         self.image_transforms = transforms.Compose(
             [
-                transforms.Resize(size=self.size, antialias=True)
+                transforms.Resize(size=self.size, antialias=True) 
                 if not is_val
                 else transforms.Resize(size=(self.size, self.size), antialias=True), # if the dataset is the validation one, we want square images
                 transforms.ToImageTensor(),
