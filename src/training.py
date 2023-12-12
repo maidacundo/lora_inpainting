@@ -14,7 +14,7 @@ from diffusers.utils.import_utils import is_xformers_available
 from diffusers.optimization import get_scheduler
 from peft import LoraConfig, LoraModel
 
-from timesteps_scheduler import TimestepScheduler
+from .timesteps_scheduler import TimestepScheduler
 
 from .utils import set_random_seed, get_label_mapping, print_trainable_parameters, save_loras, save_textual_inversion
 from .ti_utils import replace_textual_inversion, load_textual_inversion
@@ -561,7 +561,7 @@ def train_lora(
         text_encoder.train()
         for batch in train_dataloader:
             optimizer_lora.zero_grad()
-            model_pred, target, _ = forward_step(
+            model_pred, target = forward_step(
                 batch,
                 unet,
                 vae,
@@ -619,7 +619,7 @@ def train_lora(
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        model_pred, target. _ = forward_step(
+                        model_pred, target = forward_step(
                                                     batch,
                                                     unet,
                                                     vae,
@@ -710,8 +710,8 @@ def forward_step(
     if timesteps_scheduler is not None:
         timesteps_bounds = timesteps_scheduler.get_timesteps_bounds()
         timesteps = torch.randint(
-            timesteps_bounds[0],
             timesteps_bounds[1],
+            timesteps_bounds[0],
             (bsz,),
             device=latents.device,
         )
@@ -779,4 +779,4 @@ def forward_step(
         target = scheduler.add_noise(latents, target, timesteps)
         model_pred = scheduler.add_noise(latents, model_pred, timesteps)
 
-    return model_pred, target, timesteps
+    return model_pred, target
