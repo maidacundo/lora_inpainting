@@ -106,7 +106,10 @@ def train(config: Config):
 
     timesteps_scheduler = None
     if config.train.use_timestep_scheduler:
-        timesteps_scheduler = TimestepScheduler()
+        timesteps_scheduler = TimestepScheduler(
+            change_every_n_steps=config.train.timestep_scheduler_change_every_n_steps,
+            fixed_bounds=config.train.timestep_scheduler_fixed_bounds,
+        )
 
     # perform the textual inversion.
     if len(new_token_ids) > 0:
@@ -148,6 +151,7 @@ def train(config: Config):
                     tokenizer,
                     text_encoder,
                 )
+                print(len)
                 print("Textual inversion loaded successfully.")
                 print("Using checkpoint:", selected_checkpoint)
                 break
@@ -223,11 +227,12 @@ def train_inversion(
         param.requires_grad = False
 
     if config.log_wandb:
+        run_name = 'ti_' + config.wandb.run_name if config.wandb.run_name else None
         wandb.init(
             project=config.wandb.project_name, 
             entity=config.wandb.entity_name,
             config=config,
-            id=config.wandb.run_name,
+            id=run_name,
             tags='inversion',
         )
 
@@ -267,7 +272,7 @@ def train_inversion(
     global_step = 0
 
     mse = torch.nn.MSELoss(reduction='mean')
-    ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4)
+    ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4, win_size=config.train.ssim_win_size)
     ms_ssim = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4, win_size=3)
 
     if config.train.criterion == 'mse':
@@ -450,11 +455,12 @@ def train_lora(
         param.requires_grad = False
 
     if config.log_wandb:
+        run_name = 'lora_' + config.wandb.run_name if config.wandb.run_name else None
         wandb.init(
             project=config.wandb.project_name, 
             entity=config.wandb.entity_name,
             config=config,
-            id=config.wandb.run_name,
+            id=run_name,
             tags=config.wandb.tags,
         )
         wandb.watch(unet)
@@ -537,7 +543,7 @@ def train_lora(
         text_encoder_steps = config.train.lora_total_steps
     
     mse = torch.nn.MSELoss(reduction='mean')
-    ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4)
+    ssim = SSIM_loss(data_range=1.0, size_average=True, channel=4, win_size=config.train.ssim_win_size)
     ms_ssim = MS_SSIM_loss(data_range=1.0, size_average=True, channel=4, win_size=3)
 
     if config.train.criterion == 'mse':

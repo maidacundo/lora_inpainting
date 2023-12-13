@@ -51,6 +51,7 @@ class TrainConfig:
     text_encoder_lr: float = 1e-4
     mask_temperature: float = 1.0
     criterion: str = 'mse+ssim'
+    ssim_win_size: int = 11
     eval_every_n_epochs: int = 5
     mixed_precision: str = 'no'
     gradient_checkpointing: bool = False
@@ -74,7 +75,9 @@ class TrainConfig:
     initializer_tokens: list = field(default_factory=list)
     load_textual_embeddings: str = None
     use_timestep_scheduler: bool = False
-
+    timestep_scheduler_change_every_n_steps: int = 100
+    timestep_scheduler_fixed_bounds: int = None
+    
 @dataclass
 class EvaluationConfig:
     num_eval_steps: int = 20
