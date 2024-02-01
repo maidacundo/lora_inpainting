@@ -63,8 +63,8 @@ class InpaintLoraDataset(Dataset):
                 transforms.Resize(size=self.size, antialias=True) 
                 if not is_val
                 else transforms.Resize(size=(self.size, self.size), antialias=True), # if the dataset is the validation one, we want square images
-                transforms.ToImageTensor(),
-                transforms.ConvertImageDtype(torch.float32),
+                transforms.ToImage(), 
+                transforms.ToDtype(torch.float32, scale=True),
                 transforms.Normalize(mean=self.mean, std=self.std)
                 if self.normalize
                 else transforms.Lambda(lambda x: x),

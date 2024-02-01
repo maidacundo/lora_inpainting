@@ -42,7 +42,7 @@ class LoraConfig:
 
 @dataclass
 class TrainConfig:
-    train_batch_size: int = 2
+    train_batch_size: int = 4
     eval_batch_size: int = 1
     train_unet: bool = True
     train_text_encoder: bool = True

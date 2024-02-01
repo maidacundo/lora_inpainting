@@ -1,5 +1,6 @@
 import os
 import itertools
+from pyexpat import model
 import wandb
 import math
 from tqdm import tqdm
@@ -290,6 +291,7 @@ def train_inversion(
         print('Using MSE + SSIM loss')
     elif config.train.criterion == 'mlsd':
         criterion = MLSD_Perceptual_loss()
+        noise_scheduler.set_timesteps(20, device="cuda")
         print('Using MLSD loss')
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
@@ -565,8 +567,9 @@ def train_lora(
         def criterion(pred, target, alpha=0.3):
             return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
         print('Using MSE + SSIM loss')
-    elif config.train.criterion == 'mlsd':
+    elif config.train.criterion == 'mlsd+mse':
         criterion = MLSD_Perceptual_loss()
+        noise_scheduler.set_timesteps(20, device="cuda")
         print('Using MLSD loss')
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
@@ -587,9 +590,12 @@ def train_lora(
                 loss_on_latent=config.train.loss_on_latent,
                 timesteps_scheduler=timesteps_scheduler,
             )
-            if config.train.criterion == 'mlsd':
-                step_latents = noise_scheduler.step(model_pred, timesteps, noisy_latents, return_dict=False)[0]
-                train_loss = criterion(step_latents, latents)
+            if config.train.criterion == 'mlsd+mse':
+                step_latents = []
+                for i, t in enumerate(timesteps):
+                    step_latents.append(noise_scheduler.step(model_pred[i], t, noisy_latents[i], return_dict=False)[0])
+                alpha = 0.3
+                train_loss = (alpha) * criterion(torch.stack(step_latents), latents) + (1-alpha) * mse(model_pred.float(), target.float())
             else:
                 train_loss = criterion(model_pred.float(), target.float())
 

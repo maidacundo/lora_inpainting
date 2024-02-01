@@ -13,13 +13,14 @@ class SSIM_loss(SSIM):
     
 class MLSD_Perceptual_loss(nn.L1Loss):
     def __init__(self, *args, **kwargs):
-        super(MLSD_Perceptual_loss, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.mlsd = MLSDdetector.from_pretrained('lllyasviel/ControlNet').model
         self.mlsd.eval()
         self.mlsd.requires_grad_(False)
+        self.mlsd.to('cuda')
     
     def forward(self, step_latents, original_latents):
         mlsd_features = self.mlsd(torch.cat([step_latents, original_latents], dim=0))
         pred_features, target_features = mlsd_features.chunk(2, dim=0)
-        return super(MLSD_Perceptual_loss, self).forward(pred_features, target_features)
+        return super().forward(pred_features, target_features)
 
