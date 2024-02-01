@@ -22,7 +22,7 @@ from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_da
 from .model import get_models
 from .evaluate import evaluate_pipe
 from .config import Config
-from .losses import SSIM_loss, MS_SSIM_loss
+from .losses import SSIM_loss, MS_SSIM_loss, MLSD_Perceptual_loss
 from .metrics import DinoScorer, FIDScorer
 
 logging.set_verbosity_error()
@@ -108,7 +108,7 @@ def train(config: Config):
     if config.train.use_timestep_scheduler:
         timesteps_scheduler = TimestepScheduler(
             change_every_n_steps=config.train.timestep_scheduler_change_every_n_steps,
-            fixed_bounds=config.train.timestep_scheduler_fixed_bounds,
+            fixed_bounds_idx=config.train.timestep_scheduler_fixed_bounds,
         )
 
     # perform the textual inversion.
@@ -288,6 +288,9 @@ def train_inversion(
         def criterion(pred, target, alpha=0.3):
             return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
         print('Using MSE + SSIM loss')
+    elif config.train.criterion == 'mlsd':
+        criterion = MLSD_Perceptual_loss()
+        print('Using MLSD loss')
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
 
@@ -296,7 +299,7 @@ def train_inversion(
         text_encoder.train()
         for batch in train_dataloader:
             optimizer_inversion.zero_grad()
-            model_pred, target = forward_step(
+            model_pred, target, noisy_latents, latents, timesteps = forward_step(
                 batch,
                 unet,
                 vae,
@@ -364,7 +367,7 @@ def train_inversion(
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        model_pred, target = forward_step(
+                        model_pred, target, _, _, _ = forward_step(
                                                 batch,
                                                 unet,
                                                 vae,
@@ -404,6 +407,9 @@ def train_inversion(
                 text_encoder,
                 save_path,
             )
+
+            unet.train()
+            text_encoder.train()
             
         wandb.log(logs, step=global_step)
     del optimizer_inversion
@@ -559,6 +565,9 @@ def train_lora(
         def criterion(pred, target, alpha=0.3):
             return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
         print('Using MSE + SSIM loss')
+    elif config.train.criterion == 'mlsd':
+        criterion = MLSD_Perceptual_loss()
+        print('Using MLSD loss')
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
 
@@ -567,7 +576,7 @@ def train_lora(
         text_encoder.train()
         for batch in train_dataloader:
             optimizer_lora.zero_grad()
-            model_pred, target = forward_step(
+            model_pred, target, noisy_latents, latents, timesteps = forward_step(
                 batch,
                 unet,
                 vae,
@@ -578,7 +587,12 @@ def train_lora(
                 loss_on_latent=config.train.loss_on_latent,
                 timesteps_scheduler=timesteps_scheduler,
             )
-            train_loss = criterion(model_pred.float(), target.float())
+            if config.train.criterion == 'mlsd':
+                step_latents = noise_scheduler.step(model_pred, timesteps, noisy_latents, return_dict=False)[0]
+                train_loss = criterion(step_latents, latents)
+            else:
+                train_loss = criterion(model_pred.float(), target.float())
+
             train_loss.backward()
             loss_sum += train_loss.detach().item()
 
@@ -617,7 +631,6 @@ def train_lora(
             unet.eval()
             text_encoder.eval()
 
-
             mse_loss = 0.0
             ssim_loss = 0.0
             ms_ssim_loss = 0.0
@@ -625,7 +638,7 @@ def train_lora(
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        model_pred, target = forward_step(
+                        model_pred, target, _, _, _ = forward_step(
                                                     batch,
                                                     unet,
                                                     vae,
@@ -665,6 +678,10 @@ def train_lora(
                 save_path, 
                 config
             )
+
+            unet.train()
+            text_encoder.train()
+        
         wandb.log(logs, step=global_step)
     wandb.finish()
 
@@ -785,4 +802,4 @@ def forward_step(
         target = scheduler.add_noise(latents, target, timesteps)
         model_pred = scheduler.add_noise(latents, model_pred, timesteps)
 
-    return model_pred, target
+    return model_pred, target, noisy_latents, latents, timesteps

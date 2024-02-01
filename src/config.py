@@ -76,7 +76,8 @@ class TrainConfig:
     load_textual_embeddings: str = None
     use_timestep_scheduler: bool = False
     timestep_scheduler_change_every_n_steps: int = 100
-    timestep_scheduler_fixed_bounds: int = None
+    # timestep_scheduler_fixed_bounds are two integers that represent the bounds of the timestep scheduler
+    timestep_scheduler_fixed_bounds: list = field(default_factory=lambda: [800, 200])
     
 @dataclass
 class EvaluationConfig:
@@ -85,7 +86,7 @@ class EvaluationConfig:
     strengths: list = field(default_factory=lambda: [1])
     eval_epochs: int = 10
     log_attention_maps: bool = False
-    num_images_per_prompt: int = 12 # the number of images to generate for each prompt during evaluation (used to compute FID)
+    num_images_per_prompt: int = 12 # the number of images to generate for each prompt during evaluation (used to compute FID and DINO scores)
     compute_dino_score: bool = True
     compute_fid_score: bool = True
 

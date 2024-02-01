@@ -2,7 +2,7 @@
 import random
 
 class TimestepScheduler():
-    def __init__(self, change_every_n_steps=100, fixed_bounds_idx=None):
+    def __init__(self, change_every_n_steps=100, fixed_bounds=None):
         self.timesteps_dict = {
             0: [800, 600],
             1: [600, 500],
@@ -14,8 +14,8 @@ class TimestepScheduler():
         self.current_step = 0
         self.current_idx = 0
         self.current_bounds = self.timesteps_dict[self.current_idx]
-        if fixed_bounds_idx is not None:
-            self.fixed_bounds = self.timesteps_dict[fixed_bounds_idx]
+        if fixed_bounds is not None:
+            self.fixed_bounds = fixed_bounds
         else:
             self.fixed_bounds = None
 
