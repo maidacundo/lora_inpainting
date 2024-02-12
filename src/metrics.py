@@ -6,6 +6,7 @@ from torch.nn import functional as F
 from torchmetrics.image.fid import FrechetInceptionDistance
 from torchvision import transforms
 from PIL import Image
+from controlnet_aux import MLSDdetector
 
 from transformers import (
     AutoModel, 
@@ -99,3 +100,17 @@ class FIDScorer(nn.Module):
         fid = self.fid_model.compute()
         self.fid_model.reset()
         return fid.item()
+    
+
+class MLSDScorer(nn.L1Loss):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mlsd = MLSDdetector.from_pretrained('lllyasviel/ControlNet').model
+        self.mlsd.eval()
+        self.mlsd.requires_grad_(False)
+        self.mlsd.to('cuda')
+    
+    def forward(self, step_latents, original_latents):
+        mlsd_features = self.mlsd(torch.cat([step_latents, original_latents], dim=0))
+        pred_features, target_features = mlsd_features.chunk(2, dim=0)
+        return super().forward(pred_features, target_features)

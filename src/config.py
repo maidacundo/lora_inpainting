@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from typing import Optional
+
 @dataclass
 class DatasetConfig:
     roboflow_api_key: str
@@ -51,6 +53,7 @@ class TrainConfig:
     text_encoder_lr: float = 1e-4
     mask_temperature: float = 1.0
     criterion: str = 'mse+ssim'
+    criterion_alpha: float = 0.1 # alpha for the weighted sum of the losses
     ssim_win_size: int = 11
     eval_every_n_epochs: int = 5
     mixed_precision: str = 'no'
@@ -78,6 +81,7 @@ class TrainConfig:
     timestep_scheduler_change_every_n_steps: int = 100
     # timestep_scheduler_fixed_bounds are two integers that represent the bounds of the timestep scheduler
     timestep_scheduler_fixed_bounds: list = field(default_factory=lambda: [800, 200])
+    timestep_snr_gamma: Optional[int] = None # SNR weighting gamma to be used if rebalancing the loss. Recommended value is 5.0. if setted, criterion will be mse
     
 @dataclass
 class EvaluationConfig:

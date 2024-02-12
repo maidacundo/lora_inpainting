@@ -13,6 +13,20 @@ from diffusers import (
 )
 
 import torch
+from typing import List, Optional, Union
+import re
+import torch
+
+from transformers import (
+    CLIPTextModel, 
+    CLIPTokenizer, 
+)
+from diffusers import (
+    AutoencoderKL,
+    UNet2DConditionModel,
+    DDIMScheduler,
+    StableDiffusionInpaintPipeline,
+)
 
 def get_models(
     pretrained_model_name_or_path: str,
@@ -21,7 +35,7 @@ def get_models(
     initializer_tokens: Optional[List[str]] = None,
     device: str = "cuda",
     load_from_safetensor=False,
-) -> [CLIPTextModel, AutoencoderKL, UNet2DConditionModel, CLIPTokenizer, DDIMScheduler]:
+) -> List[Union[CLIPTextModel, AutoencoderKL, UNet2DConditionModel, CLIPTokenizer, DDIMScheduler]]:
     if load_from_safetensor:
 
         print('loading VAE...')

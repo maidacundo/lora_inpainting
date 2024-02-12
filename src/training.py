@@ -13,6 +13,8 @@ import torch.utils.checkpoint
 from diffusers import logging
 from diffusers.utils.import_utils import is_xformers_available
 from diffusers.optimization import get_scheduler
+from diffusers.training_utils import compute_snr
+
 from peft import LoraConfig, LoraModel
 
 from .timesteps_scheduler import TimestepScheduler
@@ -23,7 +25,7 @@ from .data import InpaintLoraDataset, InpaintingDataLoader, download_roboflow_da
 from .model import get_models
 from .evaluate import evaluate_pipe
 from .config import Config
-from .losses import SSIM_loss, MS_SSIM_loss, MLSD_Perceptual_loss
+from .losses import SSIM_loss, MS_SSIM_loss
 from .metrics import DinoScorer, FIDScorer
 
 logging.set_verbosity_error()
@@ -286,13 +288,9 @@ def train_inversion(
         criterion = ms_ssim
         print('Using MS-SSIM loss')
     elif config.train.criterion == 'mse+ssim':
-        def criterion(pred, target, alpha=0.3):
-            return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
+        def criterion(pred, target, alpha=config.train.criterion_alpha):
+            return (1-alpha) * mse(pred, target) + alpha * ssim(pred, target)
         print('Using MSE + SSIM loss')
-    elif config.train.criterion == 'mlsd':
-        criterion = MLSD_Perceptual_loss()
-        noise_scheduler.set_timesteps(20, device="cuda")
-        print('Using MLSD loss')
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
 
@@ -301,7 +299,7 @@ def train_inversion(
         text_encoder.train()
         for batch in train_dataloader:
             optimizer_inversion.zero_grad()
-            model_pred, target, noisy_latents, latents, timesteps = forward_step(
+            model_pred, target, timesteps = forward_step(
                 batch,
                 unet,
                 vae,
@@ -369,7 +367,7 @@ def train_inversion(
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        model_pred, target, _, _, _ = forward_step(
+                        model_pred, target, _ = forward_step(
                                                 batch,
                                                 unet,
                                                 vae,
@@ -564,13 +562,9 @@ def train_lora(
         criterion = ms_ssim
         print('Using MS-SSIM loss')
     elif config.train.criterion == 'mse+ssim':
-        def criterion(pred, target, alpha=0.3):
-            return alpha * mse(pred, target) + (1-alpha) * ssim(pred, target)
+        def criterion(pred, target, alpha=config.train.criterion_alpha):
+            return (1-alpha) * mse(pred, target) + alpha * ssim(pred, target)
         print('Using MSE + SSIM loss')
-    elif config.train.criterion == 'mlsd+mse':
-        criterion = MLSD_Perceptual_loss()
-        noise_scheduler.set_timesteps(20, device="cuda")
-        print('Using MLSD loss')
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
 
@@ -579,7 +573,7 @@ def train_lora(
         text_encoder.train()
         for batch in train_dataloader:
             optimizer_lora.zero_grad()
-            model_pred, target, noisy_latents, latents, timesteps = forward_step(
+            model_pred, target, timesteps = forward_step(
                 batch,
                 unet,
                 vae,
@@ -590,12 +584,22 @@ def train_lora(
                 loss_on_latent=config.train.loss_on_latent,
                 timesteps_scheduler=timesteps_scheduler,
             )
-            if config.train.criterion == 'mlsd+mse':
-                step_latents = []
-                for i, t in enumerate(timesteps):
-                    step_latents.append(noise_scheduler.step(model_pred[i], t, noisy_latents[i], return_dict=False)[0])
-                alpha = 0.3
-                train_loss = (alpha) * criterion(torch.stack(step_latents), latents) + (1-alpha) * mse(model_pred.float(), target.float())
+            if config.train.timestep_snr_gamma is not None:
+                snr = compute_snr(noise_scheduler, timesteps)
+                base_weight = (
+                        torch.stack([snr, config.train.timestep_snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
+                    )
+
+                if noise_scheduler.config.prediction_type == "v_prediction":
+                    # Velocity objective needs to be floored to an SNR weight of one.
+                    mse_loss_weights = base_weight + 1
+                else:
+                    # Epsilon and sample both use the same loss weights.
+                    mse_loss_weights = base_weight
+                
+                train_loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
+                train_loss = train_loss.mean(dim=list(range(1, len(train_loss.shape)))) * mse_loss_weights
+                train_loss = train_loss.mean()
             else:
                 train_loss = criterion(model_pred.float(), target.float())
 
@@ -644,7 +648,7 @@ def train_lora(
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        model_pred, target, _, _, _ = forward_step(
+                        model_pred, target, _ = forward_step(
                                                     batch,
                                                     unet,
                                                     vae,
@@ -724,6 +728,7 @@ def forward_step(
     masked_image_latents = vae.encode(
                 batch["masked_image_values"].to(dtype=weight_dtype).to(unet.device)
             ).latent_dist.sample()
+    
     masked_image_latents = masked_image_latents * vae.config.scaling_factor
     latents = latents * vae.config.scaling_factor
 
