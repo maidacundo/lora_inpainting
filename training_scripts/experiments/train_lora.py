@@ -4,7 +4,7 @@ from src.config import DatasetConfig, PromptConfig, ModelConfig, LoraConfig, Tra
 import argparse
 from src.training import train
 
-def parse_args(input_args=None):
+def parse_args():
     parser = argparse.ArgumentParser(description="Training script.")
 
     parser.add_argument(
@@ -99,7 +99,7 @@ def main(args):
     )
 
     train_config=TrainConfig(
-        checkpoint_folder=wandb_config.project_name + "_checkpoints",
+        checkpoint_folder=wandb_config.project_name + "_" + wandb_config.project_name + "_checkpoints",
         train_batch_size=2,
         train_unet=len(unet_target_modules) > 0,
         train_text_encoder=len(text_encoder_target_modules) > 0,
