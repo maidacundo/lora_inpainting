@@ -65,7 +65,7 @@ class InpaintLoraDataset(Dataset):
                 else transforms.Resize(size=(self.size, self.size), antialias=True), # if the dataset is the validation one, we want square images
                 transforms.ToImage(), 
                 transforms.ToDtype(torch.float32, scale=True),
-                transforms.Normalize(mean=self.mean, std=self.std)
+                transforms.Normalize([0.5], [0.5])
                 if self.normalize
                 else transforms.Lambda(lambda x: x),
             ]
@@ -152,7 +152,7 @@ class InpaintLoraDataset(Dataset):
         
         text = self.label_mapping[label]
         if self.global_caption:
-            text += ', ' + self.global_caption.strip()
+            text = self.global_caption.strip() + " " + text
 
         if self.do_classifier_free_guidance:
             if random.random() > self.cfg_probability:

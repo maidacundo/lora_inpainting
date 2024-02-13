@@ -813,4 +813,4 @@ def forward_step(
         target = scheduler.add_noise(latents, target, timesteps)
         model_pred = scheduler.add_noise(latents, model_pred, timesteps)
 
-    return model_pred, target, noisy_latents, latents, timesteps
+    return model_pred, target, timesteps

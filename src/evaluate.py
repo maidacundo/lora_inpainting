@@ -60,7 +60,7 @@ def evaluate_pipe(
 
         for prompt in config.eval.prompts:
             if config.prompt.global_caption:
-                prompt += ', ' + config.prompt.global_caption
+                prompt = config.prompt.global_caption + ' ' + prompt
             
             gen_imgs_to_log = []
             if config.eval.log_attention_maps:

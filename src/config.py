@@ -10,14 +10,14 @@ class DatasetConfig:
     dataset_version: int
     data_root: str = 'data'
     image_size: int = 512
-    normalize_images: bool = False # TODO check if this is needed and if it is done in the right way (for now it is set to false)
+    normalize_images: bool = True
     scaling_pixels: int = 25
     do_classifier_free_guidance: bool = True
 
 @dataclass
 class PromptConfig:
-    global_caption: str = None
-    negative_caption: str = 'ugly, blurry, poor quality'
+    global_caption: str = 'a photo of a beautiful, high quality'
+    negative_caption: str = ''
 
 @dataclass
 class ModelConfig:
@@ -34,9 +34,12 @@ class LoraConfig:
     unet_target_modules: list = field(default_factory=lambda: ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"]) #, "proj_in", "conv1", "conv2"]
     text_encoder_target_modules: list = field(default_factory=lambda: ["q_proj", "v_proj", "k_proj", "out_proj"])
     # "to_q", "to_v", "to_k", "to_out.0" are the names of the modules in attention layers
+    # "proj_in" is the name of the linear before the attention
+    # "attn1.to_q", "attn1.to_v" add lora in the self attention layer
+    # "attn2.to_q", "attn2.to_v" add lora in the cross attention layer
     # "ff.net.0.proj" is the name of the linear in the GEGLU activation
-    # "proj_in", "conv1", "conv2" are the names of the modules in the resnet block
-    # TODO understand better the role of each module and if it is needed to add more
+     
+    # "conv1", "conv2" are the names of the modules in the resnet block
 
     # "q_proj", "v_proj", "k_proj", "out_proj" are the names of the modules in the text encoder attention layers
     # "mlp.fc1", "mlp.fc2" are the names of the modules in the text encoder mlp that produce the embeddings
@@ -52,7 +55,7 @@ class TrainConfig:
     unet_lr: float = 1e-4
     text_encoder_lr: float = 1e-4
     mask_temperature: float = 1.0
-    criterion: str = 'mse+ssim'
+    criterion: str = 'mse'
     criterion_alpha: float = 0.1 # alpha for the weighted sum of the losses
     ssim_win_size: int = 11
     eval_every_n_epochs: int = 5
@@ -85,12 +88,11 @@ class TrainConfig:
     
 @dataclass
 class EvaluationConfig:
-    num_eval_steps: int = 20
     prompts: list = field(default_factory=list)
-    strengths: list = field(default_factory=lambda: [1])
-    eval_epochs: int = 10
+    strengths: list = field(default_factory=lambda: [0.99])
+    eval_epochs: int = 1
     log_attention_maps: bool = False
-    num_images_per_prompt: int = 12 # the number of images to generate for each prompt during evaluation (used to compute FID and DINO scores)
+    num_images_per_prompt: int = 1 # the number of images to generate for each prompt during evaluation (used to compute FID and DINO scores)
     compute_dino_score: bool = True
     compute_fid_score: bool = True
 
