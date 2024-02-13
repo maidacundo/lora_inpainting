@@ -1,4 +1,4 @@
-from ast import parse
+from ast import arg, parse
 from huggingface_hub import hf_hub_download
 from src.config import DatasetConfig, PromptConfig, ModelConfig, LoraConfig, TrainConfig, WandbConfig, EvaluationConfig, Config
 import argparse
@@ -40,22 +40,25 @@ def main(args):
         model_path=inpainting_path,
         vae_path=vae_path,
     )
+    
+    if args.dataset == "kvist_windows":
+        project_name='kvist_windows',
+        dataset_version=7,
+    
+    elif args.dataset == "sommerhus":
+        project_name='sommerhus',
+        dataset_version=3,
 
     dataset_config = DatasetConfig(
-        roboflow_api_key='HNXIsW3WwnidNDQZHexX',
         roboflow_workspace='arked',
         image_size=512,
         normalize_images=True,
         scaling_pixels=25,
+        project_name=project_name,
+        dataset_version=dataset_version
     )
 
-    if args.dataset == "kvist_windows":
-        dataset_config.project_name='kvist_windows',
-        dataset_config.dataset_version=7,
-    
-    elif args.dataset == "sommerhus":
-        dataset_config.project_name='sommerhus',
-        dataset_config.dataset_version=3,
+
     
     run_name = '-injection-' + args.lora_injection 
 
@@ -99,7 +102,7 @@ def main(args):
     )
 
     train_config=TrainConfig(
-        checkpoint_folder=wandb_config.project_name + "_" + wandb_config.project_name + "_checkpoints",
+        checkpoint_folder=wandb_config.project_name + "_" + args.lora_injection + "_checkpoints",
         train_batch_size=2,
         train_unet=len(unet_target_modules) > 0,
         train_text_encoder=len(text_encoder_target_modules) > 0,
@@ -126,5 +129,5 @@ def main(args):
 
 
 if __name__ == "__main__":
-    # parse arguments and run main
-    main()
+    args = parse_args()
+    main(args)

@@ -4,7 +4,6 @@ from typing import Optional
 
 @dataclass
 class DatasetConfig:
-    roboflow_api_key: str
     roboflow_workspace: str
     project_name: str
     dataset_version: int

@@ -223,7 +223,7 @@ class InpaintingDataLoader(DataLoader):
         return batch
 
 def download_roboflow_dataset(config):
-    rf = Roboflow(api_key=config.dataset.roboflow_api_key)
+    rf = Roboflow()
     project = rf.workspace(config.dataset.roboflow_workspace).project(config.dataset.project_name)
     dataset = project.version(config.dataset.dataset_version).download("yolov7", location=config.dataset.data_root)
 
