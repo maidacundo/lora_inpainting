@@ -8,24 +8,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Training script.")
 
     parser.add_argument(
-        "--lora-injection",
-        type=str,
-        default="self-attention",
-        help="Type of LoRA injection.",
-    )
-
-    parser.add_argument(
         "--dataset",
         type=str,
         default="kvist_windows",
         help="kvist or sommerhus.",
-    )
-
-    parser.add_argument(
-        "--roboflow_api_key",
-        type=str,
-        default="HNXIsW3WwnidNDQZHexX",
-        help="Roboflow API Key.",
     )
 
     args = parser.parse_args()
@@ -58,21 +44,18 @@ def main(args):
         scaling_pixels=25,
     )
 
-    run_name = '-injection-' + args.lora_injection 
-
     wandb_config = WandbConfig(
-        project_name=args.dataset,
+        project_name=args.dataset + "_textual_inversion",
         entity_name='maidacundo',
-        run_name=run_name,
     )
 
     if args.dataset == "kvist_windows":
-        prompts = ['kvist windows']
+        prompts = ['kvist_windows']
     elif args.dataset == "sommerhus":
         prompts = ['sommerhus']
 
     if args.dataset == "kvist_windows":
-        strengths = [0.90]
+        strengths = [0.99]
     elif args.dataset == "sommerhus":
         strengths = [1]
 
@@ -81,51 +64,18 @@ def main(args):
         strengths=strengths
     )
 
-    unet_target_modules = []
-    text_encoder_target_modules = []
-
-    if args.lora_injection == "self-attention":
-        unet_target_modules = ["attn1.to_q", "attn1.to_v"]
-    if args.lora_injection == "cross-attention":
-        unet_target_modules = ["attn2.to_q", "attn2.to_v"]
-
-    if args.lora_injection == "attention-all":
-        unet_target_modules = ["to_q", "to_v", "ff.net.0.proj"]
-
-    if args.lora_injection == "geglu-resnet":
-        unet_target_modules = ["ff.net.0.proj", "proj_in", "conv1", "conv2"]
-    
-    if args.lora_injection == "geglu":
-        unet_target_modules = ["ff.net.0.proj"]
-
-    if args.lora_injection == "resnet-block":
-        unet_target_modules = ["proj_in", "conv1", "conv2"]
-
-    if args.lora_injection == "resnet-conv1":
-        unet_target_modules = ["conv1"]
-
-    if args.lora_injection == "resnet-conv2":
-        unet_target_modules = ["conv2"]
-    
-    if args.lora_injection == "resnet-proj_in":
-        unet_target_modules = ["proj_in"]
-
-    if args.lora_injection == "text-encoder":
-        text_encoder_target_modules = ["q_proj", "v_proj"]
-
-    lora_config=LoraConfig(
-        rank=8,
-        alpha=16,
-        dropout_p=0.1,
-        unet_target_modules=unet_target_modules,
-        text_encoder_target_modules=text_encoder_target_modules,
-    )
+    if args.dataset == "kvist_windows":
+        new_tokens = ["kvist_windows"]
+        initializer_tokens = ["window"]
+    elif args.dataset == "sommerhus":
+        new_tokens = ["sommerhus"]
+        initializer_tokens = ["black_wood"]
 
     train_config=TrainConfig(
-        checkpoint_folder=wandb_config.project_name + "_" + args.lora_injection + "_checkpoints",
+        checkpoint_folder=wandb_config.project_name + "_checkpoints",
         train_batch_size=2,
-        train_unet=len(unet_target_modules) > 0,
-        train_text_encoder=len(text_encoder_target_modules) > 0,
+        train_unet=False,
+        train_text_encoder=False,
         unet_lr=3e-4,
         text_encoder_lr=5e-5,
         learning_rate=1e-3,
@@ -134,6 +84,8 @@ def main(args):
         scheduler_warmup_steps=100,
         criterion='mse',
         timestep_snr_gamma=5.0,
+        new_tokens=new_tokens,
+        initializer_tokens=initializer_tokens,
     )
 
     config = Config(
@@ -142,7 +94,6 @@ def main(args):
         wandb=wandb_config,
         eval=eval_config,
         train=train_config,
-        lora=lora_config,
     )
 
     train(config)

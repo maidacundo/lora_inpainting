@@ -141,27 +141,6 @@ def train(config: Config):
         )
         print("-" * 50)
 
-        while True:
-            selected_checkpoint = input("Select checkpoint to load: (type 'exit' to skip and continue with last checkpoint)")
-            if selected_checkpoint == 'exit':
-                break
-            selected_checkpoint = os.path.join(config.train.checkpoint_folder, f'{config.wandb.project_name}_ti_{selected_checkpoint}.safetensors')
-            if os.path.exists(selected_checkpoint):
-                tokenizer, text_encoder = replace_textual_inversion(
-                    selected_checkpoint,
-                    config.train.new_tokens,
-                    new_token_ids,
-                    tokenizer,
-                    text_encoder,
-                )
-                print(len)
-                print("Textual inversion loaded successfully.")
-                print("Using checkpoint:", selected_checkpoint)
-                break
-            print("Checkpoint not found. Please try again.")
-        
-        print("-" * 50)
-
     if config.train.load_textual_embeddings and len(new_token_ids) == 0:
         tokenizer, text_encoder, vae, unet, noise_scheduler = load_textual_inversion(
             config.train.load_textual_embeddings,
@@ -172,20 +151,22 @@ def train(config: Config):
             noise_scheduler,
         )
     
-    train_lora(
-        unet,
-        vae,
-        text_encoder,
-        tokenizer,
-        noise_scheduler,
-        train_dataloader,
-        valid_dataloader,
-        test_dataset,
-        dino_scorer,
-        fid_scorer,
-        timesteps_scheduler,
-        config,
-    )
+    if config.train.train_unet or config.train.train_text_encoder:
+
+        train_lora(
+            unet,
+            vae,
+            text_encoder,
+            tokenizer,
+            noise_scheduler,
+            train_dataloader,
+            valid_dataloader,
+            test_dataset,
+            dino_scorer,
+            fid_scorer,
+            timesteps_scheduler,
+            config,
+        )
 
 def train_inversion(
     new_token_ids,

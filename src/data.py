@@ -54,9 +54,6 @@ class InpaintLoraDataset(Dataset):
         self.normalize = normalize
         self.scaling_pixels = scaling_pixels
         self.labels_filter = labels_filter # TODO implement labels filter
-        
-        if self.normalize:
-            self.mean, self.std = self.calculate_mean_std()
 
         self.image_transforms = transforms.Compose(
             [
@@ -226,7 +223,6 @@ def download_roboflow_dataset(config):
     rf = Roboflow()
     project = rf.workspace(config.dataset.roboflow_workspace).project(config.dataset.project_name)
     dataset = project.version(config.dataset.dataset_version).download("yolov7", location=config.dataset.data_root)
-
 
 
 # Custom dataset for the DINO scorer

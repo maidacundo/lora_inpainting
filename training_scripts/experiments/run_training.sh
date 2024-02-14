@@ -1,11 +1,13 @@
 pip install -r requirements.txt
+roboflow login
+wandb login
 
-python3 train.py --lora-injection self-attention --dataset kvist_windows 
+python3 train_lora.py --lora-injection self-attention --dataset sommerhus 
 
-python3 train.py --lora-injection cross-attention --dataset kvist_windows 
+python3 train_lora.py --lora-injection cross-attention --dataset sommerhus 
 
-python3 train.py --lora-injection geglu --dataset kvist_windows 
+python3 train_lora.py --lora-injection geglu --dataset sommerhus 
 
-python3 train.py --lora-injection resnet-block --dataset kvist_windows 
+python3 train_lora.py --lora-injection resnet-block --dataset sommerhus 
 
-python3 train.py --lora-injection text-encoder --dataset kvist_windows
+python3 train_lora.py --lora-injection text-encoder --dataset sommerhus
