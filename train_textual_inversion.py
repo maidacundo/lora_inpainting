@@ -29,11 +29,11 @@ def main(args):
     
     if args.dataset == "kvist_windows":
         project_name='kvist_windows'
-        dataset_version=8
+        dataset_version=11
     
     elif args.dataset == "sommerhus":
-        project_name='sommerhus'
-        dataset_version=4
+        project_name='wood_facade-2'
+        dataset_version=7
 
     dataset_config = DatasetConfig(
         project_name=project_name,
@@ -42,6 +42,7 @@ def main(args):
         image_size=512,
         normalize_images=True,
         scaling_pixels=25,
+        data_root='data_' + args.dataset,
     )
 
     wandb_config = WandbConfig(
@@ -66,10 +67,10 @@ def main(args):
 
     if args.dataset == "kvist_windows":
         new_tokens = ["kvist_windows"]
-        initializer_tokens = ["window"]
+        initializer_tokens = ["<rand-0.5>"]
     elif args.dataset == "sommerhus":
         new_tokens = ["sommerhus"]
-        initializer_tokens = ["black_wood"]
+        initializer_tokens = ["<rand-0.5>"]
 
     train_config=TrainConfig(
         checkpoint_folder=wandb_config.project_name + "_checkpoints",
@@ -77,11 +78,12 @@ def main(args):
         train_unet=False,
         train_text_encoder=False,
         unet_lr=3e-4,
-        text_encoder_lr=5e-5,
-        learning_rate=1e-3,
+        text_encoder_lr=3e-4,
+        learning_rate=1e-4,
         scheduler_num_cycles=2,
-        lora_total_steps=1000,
-        scheduler_warmup_steps=100,
+        ti_total_steps=1000,
+        scheduler_type='linear',
+        scheduler_warmup_steps=0,
         criterion='mse',
         timestep_snr_gamma=5.0,
         new_tokens=new_tokens,

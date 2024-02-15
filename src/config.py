@@ -52,6 +52,7 @@ class TrainConfig:
     train_text_encoder: bool = True
     text_encoder_train_ratio: float = 1
     unet_lr: float = 1e-4
+    unet_geglu_lr: float = 3e-3
     text_encoder_lr: float = 1e-4
     mask_temperature: float = 1.0
     criterion: str = 'mse'

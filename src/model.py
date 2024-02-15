@@ -106,9 +106,7 @@ def get_models(
                 token_embeds[new_token_id] = (
                     torch.randn_like(token_embeds[0]) * sigma_val
                 )
-                print(
-                    f"Initialized {token} with random noise (sigma={sigma_val}), empirically {token_embeds[new_token_id].mean().item():.3f} +- {token_embeds[new_tokens].std().item():.3f}"
-                )
+
                 print(f"Norm : {token_embeds[new_token_id].norm():.4f}")
 
             elif init_tok == "<zero>":

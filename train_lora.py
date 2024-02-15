@@ -40,14 +40,14 @@ def main(args):
         model_path=inpainting_path,
         vae_path=vae_path,
     )
-    
+
     if args.dataset == "kvist_windows":
         project_name='kvist_windows'
-        dataset_version=8
+        dataset_version=11
     
     elif args.dataset == "sommerhus":
-        project_name='sommerhus'
-        dataset_version=4
+        project_name='wood_facade-2'
+        dataset_version=7
 
     dataset_config = DatasetConfig(
         project_name=project_name,
@@ -58,7 +58,7 @@ def main(args):
         scaling_pixels=25,
     )
 
-    run_name = '-injection-' + args.lora_injection 
+    run_name = 'easier-injection-' + args.lora_injection 
 
     wandb_config = WandbConfig(
         project_name=args.dataset,
@@ -69,7 +69,7 @@ def main(args):
     if args.dataset == "kvist_windows":
         prompts = ['kvist windows']
     elif args.dataset == "sommerhus":
-        prompts = ['sommerhus']
+        prompts = ['black wood facade']
 
     if args.dataset == "kvist_windows":
         strengths = [0.90]
@@ -89,17 +89,26 @@ def main(args):
     if args.lora_injection == "cross-attention":
         unet_target_modules = ["attn2.to_q", "attn2.to_v"]
 
+    if args.lora_injection == "self-attention+geglu":
+        unet_target_modules = ["attn1.to_q", "attn1.to_v", "ff.net.0.proj"]
+    if args.lora_injection == "cross-attention+geglu":
+        unet_target_modules = ["attn2.to_q", "attn2.to_v", "ff.net.0.proj"]
+
+
     if args.lora_injection == "attention-all":
         unet_target_modules = ["to_q", "to_v", "ff.net.0.proj"]
 
     if args.lora_injection == "geglu-resnet":
-        unet_target_modules = ["ff.net.0.proj", "proj_in", "conv1", "conv2"]
+        unet_target_modules = ["ff.net.0.proj", "conv1", "conv2"]
     
     if args.lora_injection == "geglu":
         unet_target_modules = ["ff.net.0.proj"]
 
+    if args.lora_injection == "geglu-all":
+        unet_target_modules = ["ff.net.0.proj", "ff.net.2"]
+
     if args.lora_injection == "resnet-block":
-        unet_target_modules = ["proj_in", "conv1", "conv2"]
+        unet_target_modules = ["conv1", "conv2"]
 
     if args.lora_injection == "resnet-conv1":
         unet_target_modules = ["conv1"]
@@ -112,6 +121,10 @@ def main(args):
 
     if args.lora_injection == "text-encoder":
         text_encoder_target_modules = ["q_proj", "v_proj"]
+    
+    if args.lora_injection == "text-encoder+geglu":
+        text_encoder_target_modules = ["q_proj", "v_proj"]
+        unet_target_modules =  ["ff.net.0.proj"]
 
     lora_config=LoraConfig(
         rank=8,
@@ -127,9 +140,9 @@ def main(args):
         train_unet=len(unet_target_modules) > 0,
         train_text_encoder=len(text_encoder_target_modules) > 0,
         unet_lr=3e-4,
-        text_encoder_lr=5e-5,
+        text_encoder_lr=3e-4,
         learning_rate=1e-3,
-        scheduler_num_cycles=2,
+        scheduler_num_cycles=1,
         lora_total_steps=1000,
         scheduler_warmup_steps=100,
         criterion='mse',

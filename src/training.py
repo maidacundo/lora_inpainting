@@ -469,7 +469,11 @@ def train_lora(
 
         params_to_optimize += [
             {
-                "params": itertools.chain(unet.parameters()),
+                "params": [param for name, param in unet.named_parameters() if 'ff.net' in name],
+                "lr": config.train.unet_geglu_lr,
+            },
+            {
+                "params": [param for name, param in unet.named_parameters() if 'ff.net' not in name],
                 "lr": config.train.unet_lr,
             },
         ]
@@ -543,8 +547,29 @@ def train_lora(
         criterion = ms_ssim
         print('Using MS-SSIM loss')
     elif config.train.criterion == 'mse+ssim':
-        def criterion(pred, target, alpha=config.train.criterion_alpha):
-            return (1-alpha) * mse(pred, target) + alpha * ssim(pred, target)
+        if config.train.timestep_snr_gamma is not None:
+            def criterion(pred, target, timesteps, alpha=config.train.criterion_alpha):
+                mse_loss = F.mse_loss(pred.float(), target.float(), reduction="none")
+                snr = compute_snr(noise_scheduler, timesteps)
+
+                base_weight = (
+                        torch.stack([snr, config.train.timestep_snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
+                    )
+
+                if noise_scheduler.config.prediction_type == "v_prediction":
+                    # Velocity objective needs to be floored to an SNR weight of one.
+                    mse_loss_weights = base_weight + 1
+                else:
+                    # Epsilon and sample both use the same loss weights.
+                    mse_loss_weights = base_weight
+
+                mse_loss = mse_loss.mean(dim=list(range(1, len(mse_loss.shape)))) * mse_loss_weights
+                mse_loss = mse_loss.mean()
+                return (1-alpha) * mse_loss + alpha * ssim(pred, target)
+
+        else:
+            def criterion(pred, target, alpha=config.train.criterion_alpha):
+                return (1-alpha) * mse(pred, target) + alpha * ssim(pred, target)
         print('Using MSE + SSIM loss')
     else:
         raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
@@ -566,21 +591,24 @@ def train_lora(
                 timesteps_scheduler=timesteps_scheduler,
             )
             if config.train.timestep_snr_gamma is not None:
-                snr = compute_snr(noise_scheduler, timesteps)
-                base_weight = (
-                        torch.stack([snr, config.train.timestep_snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
-                    )
-
-                if noise_scheduler.config.prediction_type == "v_prediction":
-                    # Velocity objective needs to be floored to an SNR weight of one.
-                    mse_loss_weights = base_weight + 1
+                if config.train.criterion == 'mse+ssim':
+                    train_loss = criterion(model_pred.float(), target.float(), timesteps)
                 else:
-                    # Epsilon and sample both use the same loss weights.
-                    mse_loss_weights = base_weight
-                
-                train_loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
-                train_loss = train_loss.mean(dim=list(range(1, len(train_loss.shape)))) * mse_loss_weights
-                train_loss = train_loss.mean()
+                    snr = compute_snr(noise_scheduler, timesteps)
+                    base_weight = (
+                            torch.stack([snr, config.train.timestep_snr_gamma * torch.ones_like(timesteps)], dim=1).min(dim=1)[0] / snr
+                        )
+
+                    if noise_scheduler.config.prediction_type == "v_prediction":
+                        # Velocity objective needs to be floored to an SNR weight of one.
+                        mse_loss_weights = base_weight + 1
+                    else:
+                        # Epsilon and sample both use the same loss weights.
+                        mse_loss_weights = base_weight
+                    
+                    train_loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
+                    train_loss = train_loss.mean(dim=list(range(1, len(train_loss.shape)))) * mse_loss_weights
+                    train_loss = train_loss.mean()
             else:
                 train_loss = criterion(model_pred.float(), target.float())
 
