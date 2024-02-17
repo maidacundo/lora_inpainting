@@ -65,6 +65,11 @@ def main(args):
         strengths=strengths
     )
 
+    prompt_config = PromptConfig(
+        global_caption=None,
+        negative_caption=None,
+    )
+
     if args.dataset == "kvist_windows":
         new_tokens = ["kvist_windows"]
         initializer_tokens = ["<rand-0.5>"]
@@ -79,10 +84,11 @@ def main(args):
         train_text_encoder=False,
         unet_lr=3e-4,
         text_encoder_lr=3e-4,
-        learning_rate=1e-4,
+        learning_rate=5e-5,
+        weight_decay=0.0,
         scheduler_num_cycles=2,
         ti_total_steps=1000,
-        scheduler_type='linear',
+        scheduler_type='constant',
         scheduler_warmup_steps=0,
         criterion='mse',
         timestep_snr_gamma=5.0,
@@ -96,6 +102,7 @@ def main(args):
         wandb=wandb_config,
         eval=eval_config,
         train=train_config,
+        prompt=prompt_config,
     )
 
     train(config)

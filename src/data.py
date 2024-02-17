@@ -33,6 +33,7 @@ class InpaintLoraDataset(Dataset):
         labels_filter: Optional[list] = None,
         do_classifier_free_guidance: bool = False,
         cfg_probability: float = 0.1,
+        trigger_word: Optional[str] = None,
     ):
         self.size = size
         self.tokenizer = tokenizer
@@ -48,6 +49,7 @@ class InpaintLoraDataset(Dataset):
         self.label_mapping = label_mapping
 
         self.global_caption = global_caption
+        self.trigger_word = trigger_word
 
         self._length = len(self.imgs)
 
@@ -60,8 +62,7 @@ class InpaintLoraDataset(Dataset):
                 transforms.Resize(size=self.size, antialias=True) 
                 if not is_val
                 else transforms.Resize(size=(self.size, self.size), antialias=True), # if the dataset is the validation one, we want square images
-                transforms.ToImage(), 
-                transforms.ToDtype(torch.float32, scale=True),
+                transforms.ToTensor(),
                 transforms.Normalize([0.5], [0.5])
                 if self.normalize
                 else transforms.Lambda(lambda x: x),
@@ -150,6 +151,9 @@ class InpaintLoraDataset(Dataset):
         text = self.label_mapping[label]
         if self.global_caption:
             text = self.global_caption.strip() + " " + text
+
+        if self.trigger_word:
+            text = self.trigger_word + " " + text
 
         if self.do_classifier_free_guidance:
             if random.random() > self.cfg_probability:

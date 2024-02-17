@@ -12,11 +12,12 @@ class DatasetConfig:
     normalize_images: bool = True
     scaling_pixels: int = 25
     do_classifier_free_guidance: bool = True
+    trigger_word: str = None # to trigger Pivotal Tuning if text inversion is used
 
 @dataclass
 class PromptConfig:
-    global_caption: str = 'a photo of a beautiful, high quality'
-    negative_caption: str = ''
+    global_caption: str = None
+    negative_caption: str = None
 
 @dataclass
 class ModelConfig:
@@ -27,7 +28,7 @@ class ModelConfig:
 class LoraConfig:
     rank: int = 8
     alpha: float = 32.0 
-    dropout_p: float = 0.1
+    dropout_p: float = 0.0 # TODO testing the dropout in the lora 110*
     unet_adapter_name: str = 'lora_unet'
     text_encoder_adapter_name: str = 'lora_te' 
     unet_target_modules: list = field(default_factory=lambda: ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"]) #, "proj_in", "conv1", "conv2"]
@@ -52,7 +53,7 @@ class TrainConfig:
     train_text_encoder: bool = True
     text_encoder_train_ratio: float = 1
     unet_lr: float = 1e-4
-    unet_geglu_lr: float = 3e-3
+    unet_geglu_lr: float = 7e-4
     text_encoder_lr: float = 1e-4
     mask_temperature: float = 1.0
     criterion: str = 'mse'
