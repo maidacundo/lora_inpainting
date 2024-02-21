@@ -1,4 +1,3 @@
-from ast import arg, parse
 from huggingface_hub import hf_hub_download
 from src.config import DatasetConfig, PromptConfig, ModelConfig, LoraConfig, TrainConfig, WandbConfig, EvaluationConfig, Config
 import argparse
@@ -57,7 +56,7 @@ def main(args):
 
     if args.dataset == "kvist_windows":
         project_name='kvist_windows'
-        dataset_version=11
+        dataset_version=12
     
     elif args.dataset == "sommerhus":
         project_name='wood_facade-2'
@@ -84,9 +83,8 @@ def main(args):
     if args.textual_inversion is not None:
         run_name = run_name + "-pivotal-tuning"
 
-    if args.lora_rank is not None:
-        project_name = project_name + "_ranks"
-        run_name = run_name + "_rank_" + str(args.lora_rank)
+    project_name = project_name + "_criterion"
+    run_name = run_name + "_" + args.criterion
 
     wandb_config = WandbConfig(
         project_name=project_name,

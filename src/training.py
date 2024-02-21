@@ -265,25 +265,15 @@ def train_inversion(
     if config.train.criterion == 'mse':
         criterion = mse
         print('Using MSE loss')
-    elif config.train.criterion == 'ssim':
-        criterion = ssim
-        print('Using SSIM loss')
-    elif config.train.criterion == 'ms_ssim':
-        criterion = ms_ssim
-        print('Using MS-SSIM loss')
-    elif config.train.criterion == 'mse+ssim':
-        def criterion(pred, target, alpha=config.train.criterion_alpha):
-            return (1-alpha) * mse(pred, target) + alpha * ssim(pred, target)
-        print('Using MSE + SSIM loss')
     else:
-        raise ValueError(f'Unknown loss {config.train.criterion}, it must be either mse, ssim, ms_ssim or mse+ssim')
+        raise ValueError(f'Unknown loss {config.train.criterion}, it must be mse for textual inversion.')
 
     for epoch in range(math.ceil(config.train.ti_total_steps / len(train_dataloader))):
         unet.train()
         text_encoder.train()
         for batch in train_dataloader:
             optimizer_inversion.zero_grad()
-            model_pred, target, timesteps = forward_step(
+            model_pred, target, _, _, _ = forward_step(
                 batch,
                 unet,
                 vae,
@@ -351,7 +341,7 @@ def train_inversion(
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        model_pred, target, _ = forward_step(
+                        model_pred, target, _, _, _ = forward_step(
                                                 batch,
                                                 unet,
                                                 vae,
@@ -551,7 +541,7 @@ def train_lora(
         print('Using MS-SSIM loss')
     elif config.train.criterion == 'mse+ssim':
         if config.train.timestep_snr_gamma is not None:
-            def criterion(pred, target, timesteps, alpha=config.train.criterion_alpha):
+            def criterion(pred, target, timesteps, model_pred_on_latent, target_on_latent, alpha=config.train.criterion_alpha):
                 mse_loss = F.mse_loss(pred.float(), target.float(), reduction="none")
                 snr = compute_snr(noise_scheduler, timesteps)
 
@@ -568,7 +558,7 @@ def train_lora(
 
                 mse_loss = mse_loss.mean(dim=list(range(1, len(mse_loss.shape)))) * mse_loss_weights
                 mse_loss = mse_loss.mean()
-                return (1-alpha) * mse_loss + alpha * ssim(pred, target)
+                return (1-alpha) * mse_loss + alpha * ssim(model_pred_on_latent, target_on_latent)
 
         else:
             def criterion(pred, target, alpha=config.train.criterion_alpha):
@@ -582,7 +572,7 @@ def train_lora(
         text_encoder.train()
         for batch in train_dataloader:
             optimizer_lora.zero_grad()
-            model_pred, target, timesteps = forward_step(
+            model_pred, target, timesteps, model_pred_on_latent, target_on_latent  = forward_step(
                 batch,
                 unet,
                 vae,
@@ -595,7 +585,7 @@ def train_lora(
             )
             if config.train.timestep_snr_gamma is not None:
                 if config.train.criterion == 'mse+ssim':
-                    train_loss = criterion(model_pred.float(), target.float(), timesteps)
+                    train_loss = criterion(model_pred.float(), target.float(), timesteps, model_pred_on_latent.float(), target_on_latent.float())
                 else:
                     snr = compute_snr(noise_scheduler, timesteps)
                     base_weight = (
@@ -660,7 +650,7 @@ def train_lora(
             for _ in range(config.eval.eval_epochs):
                 for batch in valid_dataloader:
                     with torch.no_grad():
-                        model_pred, target, _ = forward_step(
+                        model_pred, target, _, _, _ = forward_step(
                                                     batch,
                                                     unet,
                                                     vae,
@@ -820,9 +810,12 @@ def forward_step(
         model_pred = model_pred * mask
 
         target = target * mask
+    
+    target_on_latent = None
+    model_pred_on_latent = None
 
     if loss_on_latent:
-        target = scheduler.add_noise(latents, target, timesteps)
-        model_pred = scheduler.add_noise(latents, model_pred, timesteps)
+        target_on_latent = scheduler.add_noise(latents, target, timesteps)
+        model_pred_on_latent = scheduler.add_noise(latents, model_pred, timesteps)
 
-    return model_pred, target, timesteps
+    return model_pred, target, timesteps, model_pred_on_latent, target_on_latent 

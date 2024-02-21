@@ -38,7 +38,7 @@ class LoraConfig:
     # "attn1.to_q", "attn1.to_v" add lora in the self attention layer
     # "attn2.to_q", "attn2.to_v" add lora in the cross attention layer
     # "ff.net.0.proj" is the name of the linear in the GEGLU activation
-     
+    
     # "conv1", "conv2" are the names of the modules in the resnet block
 
     # "q_proj", "v_proj", "k_proj", "out_proj" are the names of the modules in the text encoder attention layers

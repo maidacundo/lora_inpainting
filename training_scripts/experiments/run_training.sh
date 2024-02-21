@@ -14,3 +14,6 @@ python3 train_lora.py --lora-injection text-encoder --dataset sommerhus
 
 python3 train_textual_inversion.py --dataset sommerhus
 python3 train_textual_inversion.py --dataset kvist_windows
+
+
+python3 train_lora.py --lora-injection attention-all --dataset sommerhus --criterion mse+ssim
