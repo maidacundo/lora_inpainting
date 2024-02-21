@@ -66,6 +66,9 @@ def main(args):
         project_name='7er_stol_2'
         dataset_version=5
 
+    elif args.dataset == "denisen":
+        project_name='denisen'
+        dataset_version=8
     
     dataset_config = DatasetConfig(
         project_name=project_name,

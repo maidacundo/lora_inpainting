@@ -1,12 +1,11 @@
 # class for scheduling timesteps between a list of values
-import random
 
 class TimestepScheduler():
     def __init__(self, change_every_n_steps=100, fixed_bounds=None):
         self.timesteps_dict = {
-            0: [800, 600],
-            1: [600, 500],
-            2: [500, 400],
+            0: [999, 800],
+            1: [800, 600],
+            2: [600, 400],
             3: [400, 200],
             4: [200, 1],
         }

@@ -76,7 +76,7 @@ class TrainConfig:
     clip_gradients_max_norm: float = 1.0
     use_xformers: bool = False
     checkpoint_folder: str = 'checkpoints'
-    t_mutliplier: int = 0.8
+    t_mutliplier: int = 1.0
     loss_on_latent: bool = False
     new_tokens: list = field(default_factory=list)
     initializer_tokens: list = field(default_factory=list)
