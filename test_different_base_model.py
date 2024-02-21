@@ -1,5 +1,4 @@
 from huggingface_hub import hf_hub_download
-from sklearn import base
 from src.config import DatasetConfig, PromptConfig, ModelConfig, LoraConfig, TrainConfig, WandbConfig, EvaluationConfig, Config
 import argparse
 from src.training import train
@@ -50,8 +49,8 @@ def main(args):
         project_name='7er_stol_2'
         dataset_version=5
 
-    elif args.dataset == "denisen":
-        project_name='denisen'
+    elif args.dataset == "dinesen":
+        project_name='dinesen'
         dataset_version=8
     
     dataset_config = DatasetConfig(
@@ -79,10 +78,10 @@ def main(args):
         prompts = ['sommerhus black wood facade']
     elif args.dataset == "7er_stol":
         prompts = ['7er chair']
-    elif args.dataset == "denisen":
-        prompts = ['denisen floor']
+    elif args.dataset == "dinesen":
+        prompts = ['dinesen floor']
 
-    if args.dataset == "sommerhus" or args.dataset == "denisen":
+    if args.dataset == "sommerhus" or args.dataset == "dinesen":
         strengths = [1]
     else:
         strengths = [0.99]
