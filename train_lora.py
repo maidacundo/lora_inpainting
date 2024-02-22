@@ -118,36 +118,21 @@ def main(args):
     unet_target_modules = []
     text_encoder_target_modules = []
 
-    if args.lora_injection == "self-attention":
-        unet_target_modules = ["attn1.to_q", "attn1.to_v"]
-    if args.lora_injection == "cross-attention":
-        unet_target_modules = ["attn2.to_q", "attn2.to_v"]
-    if args.lora_injection == "self-attention+geglu":
-        unet_target_modules = ["attn1.to_q", "attn1.to_v", "ff.net.0.proj"]
-    if args.lora_injection == "cross-attention+geglu":
-        unet_target_modules = ["attn2.to_q", "attn2.to_v", "ff.net.0.proj"]
-    if args.lora_injection == "attention-all":
-        unet_target_modules = ["to_q", "to_v", "ff.net.0.proj"]
-    if args.lora_injection == "geglu-resnet":
-        unet_target_modules = ["ff.net.0.proj", "conv1", "conv2"]
+    if args.lora_injection == "self-attn":
+        unet_target_modules = ["attn1.to_q", "attn1.to_v", "attn1.to_k", "attn1.to_out.0"]
+
+    if args.lora_injection == "cross-attn":
+        unet_target_modules = ["attn2.to_q", "attn2.to_v", "attn2.to_k", "attn2.to_out.0"]
+
     if args.lora_injection == "geglu":
         unet_target_modules = ["ff.net.0.proj"]
-    if args.lora_injection == "geglu-all":
-        unet_target_modules = ["ff.net.0.proj", "ff.net.2"]
-    if args.lora_injection == "resnet-block":
-        unet_target_modules = ["conv1", "conv2"]
-    if args.lora_injection == "resnet-conv1":
-        unet_target_modules = ["conv1"]
-    if args.lora_injection == "resnet-conv2":
-        unet_target_modules = ["conv2"]
-    if args.lora_injection == "resnet-proj_in":
-        unet_target_modules = ["proj_in"]
-    if args.lora_injection == "text-encoder":
-        text_encoder_target_modules = ["q_proj", "v_proj"]    
-    if args.lora_injection == "text-encoder+geglu":
-        text_encoder_target_modules = ["q_proj", "v_proj"]
-        unet_target_modules =  ["ff.net.0.proj"]
 
+    if args.lora_injection == "resnet":
+        unet_target_modules = ["conv1", "conv2"]
+
+    if args.lora_injection == "text-encoder":
+        text_encoder_target_modules = ["q_proj", "v_proj", "k_proj", "out_proj"]
+    
     rank = args.lora_rank if args.lora_rank is not None else 8
 
     lora_config=LoraConfig(

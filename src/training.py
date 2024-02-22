@@ -453,8 +453,7 @@ def train_lora(
             r=config.lora.rank,
             lora_alpha=config.lora.alpha,
             target_modules=config.lora.unet_target_modules,
-            lora_dropout=0.1,
-            bias='none',
+            init_lora_weights="gaussian",
         )
 
         unet = LoraModel(unet, unet_peft, config.lora.unet_adapter_name)
@@ -476,8 +475,7 @@ def train_lora(
             r=config.lora.rank,
             lora_alpha=config.lora.alpha,
             target_modules=config.lora.text_encoder_target_modules,
-            lora_dropout=0.1,
-            bias='none',
+            init_lora_weights="gaussian",
         )
 
         text_encoder = LoraModel(text_encoder, text_encoder_peft, config.lora.text_encoder_adapter_name)
