@@ -7,20 +7,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Training script.")
 
     parser.add_argument(
-        "--lora-injection",
-        type=str,
-        default="self-attention",
-        help="Type of LoRA injection.",
-    )
-
-    parser.add_argument(
-        "--lora-rank",
-        type=int,
-        default=None,
-        help="LoRA rank.",
-    )
-
-    parser.add_argument(
         "--dataset",
         type=str,
         default="kvist_windows",
@@ -28,17 +14,10 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--textual-inversion",
+        "--injection",
         type=str,
-        default=None,
-        help="Textual Inversion path.",
-    )
-
-    parser.add_argument(
-        "--criterion",
-        type=str,
-        default="mse",
-        help="Loss criterion.",
+        default="self-attention",
+        help="Type of LoRA injection.",
     )
 
     args = parser.parse_args()
@@ -80,14 +59,8 @@ def main(args):
         data_root='lora_data_' + args.dataset,
     )
 
-    run_name = 'easier-injection-' + args.lora_injection 
-    project_name=args.dataset
-
-    if args.textual_inversion is not None:
-        run_name = run_name + "-pivotal-tuning"
-
-    project_name = project_name + "_criterion"
-    run_name = run_name + "_" + args.criterion
+    run_name = args.lora_injection 
+    project_name = args.dataset + "_injections"
 
     wandb_config = WandbConfig(
         project_name=project_name,
@@ -97,15 +70,17 @@ def main(args):
 
     if args.dataset == "kvist_windows":
         prompts = ['kvist windows']
+
     elif args.dataset == "sommerhus":
-        if args.textual_inversion is not None:
-            prompts = ['sommerhus black wood facade']
-        else:
-            prompts = ['black wood facade']
+        prompts = ['sommerhus black wood facade']
+
     elif args.dataset == "7er_stol":
         prompts = ['7er chair']
 
-    if args.dataset == "sommerhus":
+    elif args.dataset == "dinesen":
+        prompts = ['dinesen floor']
+
+    if args.dataset == "sommerhus" or args.dataset == "dinesen":
         strengths = [1]
     else:
         strengths = [0.99]
@@ -133,34 +108,28 @@ def main(args):
     if args.lora_injection == "text-encoder":
         text_encoder_target_modules = ["q_proj", "v_proj", "k_proj", "out_proj"]
     
-    rank = args.lora_rank if args.lora_rank is not None else 8
-
     lora_config=LoraConfig(
-        rank=rank,
-        alpha=16,
+        rank=8,
+        alpha=1,
         dropout_p=0.0,
         unet_target_modules=unet_target_modules,
         text_encoder_target_modules=text_encoder_target_modules,
     )
 
-    if args.textual_inversion is not None:
-        if args.dataset == "sommerhus":
-            dataset_config.trigger_word = 'sommerhus'
-
     train_config=TrainConfig(
-        checkpoint_folder=wandb_config.project_name + "_" + args.lora_injection + "_" + str(rank) + "_checkpoints" ,
+        checkpoint_folder=args.dataset + '_' + wandb_config.run_name,
         train_batch_size=2,
-        train_unet=len(unet_target_modules) > 0,
-        train_text_encoder=len(text_encoder_target_modules) > 0,
+        train_unet=True,
+        train_text_encoder=False,
         unet_lr=3e-4,
         text_encoder_lr=3e-4,
         learning_rate=1e-3,
         scheduler_num_cycles=1,
         lora_total_steps=1000,
         scheduler_warmup_steps=100,
-        criterion=args.criterion,
+        criterion="mse",
         timestep_snr_gamma=5.0,
-        load_textual_embeddings=args.textual_inversion,
+        load_textual_embeddings=None,
     )
 
     config = Config(

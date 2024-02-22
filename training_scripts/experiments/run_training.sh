@@ -42,3 +42,29 @@ python3 test_timesteps.py --dataset kvist_windows --upper-bound 200 --lower-boun
 python3 test_timesteps.py --dataset kvist_windows --upper-bound 1000 --lower-bound 400 
 python3 test_timesteps.py --dataset kvist_windows --upper-bound 1000 --lower-bound 1 # fatto
 
+# INJECTION TESTING
+
+python3 test_injection.py --dataset kvist_windows --injection self-attention 
+python3 test_injection.py --dataset kvist_windows --injection cross-attention
+python3 test_injection.py --dataset kvist_windows --injection geglu
+python3 test_injection.py --dataset kvist_windows --injection resnet
+python3 test_injection.py --dataset kvist_windows --injection text-encoder
+
+python3 test_injection.py --dataset sommerhus --injection self-attention
+python3 test_injection.py --dataset sommerhus --injection cross-attention
+python3 test_injection.py --dataset sommerhus --injection geglu
+python3 test_injection.py --dataset sommerhus --injection resnet
+python3 test_injection.py --dataset sommerhus --injection text-encoder
+
+python3 test_injection.py --dataset 7er_stol --injection self-attention
+python3 test_injection.py --dataset 7er_stol --injection cross-attention
+python3 test_injection.py --dataset 7er_stol --injection geglu
+python3 test_injection.py --dataset 7er_stol --injection resnet
+python3 test_injection.py --dataset 7er_stol --injection text-encoder
+
+# EMBEDDING TESTING
+- kvist # fatto
+- sommerhus # fatto
+- 7er_stol # da fare (?)
+
+

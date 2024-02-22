@@ -84,7 +84,7 @@ class TrainConfig:
     use_timestep_scheduler: bool = False
     timestep_scheduler_change_every_n_steps: int = 100
     # timestep_scheduler_fixed_bounds are two integers that represent the bounds of the timestep scheduler
-    timestep_scheduler_fixed_bounds: list = field(default_factory=lambda: [800, 200])
+    timestep_scheduler_fixed_bounds: list = field(default_factory=lambda: [1000, 1])
     timestep_snr_gamma: Optional[int] = None # SNR weighting gamma to be used if rebalancing the loss. Recommended value is 5.0. if setted, criterion will be mse
     
 @dataclass
