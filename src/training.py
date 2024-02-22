@@ -114,7 +114,7 @@ def train(config: Config):
     if config.train.use_timestep_scheduler:
         timesteps_scheduler = TimestepScheduler(
             change_every_n_steps=config.train.timestep_scheduler_change_every_n_steps,
-            fixed_bounds_idx=config.train.timestep_scheduler_fixed_bounds,
+            fixed_bounds=config.train.timestep_scheduler_fixed_bounds,
         )
 
     # perform the textual inversion.

@@ -32,7 +32,7 @@ def parse_args():
 
 def main(args):
 
-    inpainting_path = hf_hub_download(repo_id="SG161222/Realistic_Vision_V5.1_noVAE", filename="Realistic_Vision_V5.1-inpainting.safetensors")
+    inpainting_path = hf_hub_download(repo_id="webui/stable-diffusion-inpainting", filename="sd-v1-5-inpainting.safetensors")
     vae_path = hf_hub_download(repo_id="stabilityai/sd-vae-ft-mse-original", filename="vae-ft-mse-840000-ema-pruned.safetensors")
 
     model_config = ModelConfig(

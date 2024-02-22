@@ -27,7 +27,7 @@ class ModelConfig:
 @dataclass
 class LoraConfig:
     rank: int = 8
-    alpha: float = 32.0 
+    alpha: float = 16.0 
     dropout_p: float = 0.0 # TODO testing the dropout in the lora 110*
     unet_adapter_name: str = 'lora_unet'
     text_encoder_adapter_name: str = 'lora_te' 
