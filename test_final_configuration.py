@@ -1,5 +1,5 @@
 from huggingface_hub import hf_hub_download
-from src.config import DatasetConfig, PromptConfig, ModelConfig, LoraConfig, TrainConfig, WandbConfig, EvaluationConfig, Config
+from src.config import DatasetConfig, ModelConfig, LoraConfig, TrainConfig, WandbConfig, EvaluationConfig, Config
 import argparse
 from src.training import train
 
@@ -93,21 +93,6 @@ def main(args):
     unet_target_modules = []
     text_encoder_target_modules = []
 
-    if args.injection == "self-attn":
-        unet_target_modules = ["attn1.to_q", "attn1.to_k", "attn1.to_v", "attn1.to_out.0"]
-
-    if args.injection == "cross-attn":
-        unet_target_modules = ["attn2.to_q", "attn2.to_k", "attn2.to_v", "attn2.to_out.0"]
-
-    if args.injection == "geglu":
-        unet_target_modules = ["ff.net.0.proj"]
-
-    if args.injection == "resnet":
-        unet_target_modules = ["conv1", "conv2"]
-
-    if args.injection == "text-encoder":
-        text_encoder_target_modules = ["q_proj", "v_proj", "k_proj", "out_proj"]
-
     if args.injection == "attn-all":
         text_encoder_target_modules = ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"]
 
@@ -116,9 +101,8 @@ def main(args):
         text_encoder_target_modules = ["q_proj", "v_proj", "k_proj", "out_proj"]
     
     lora_config=LoraConfig(
-        rank=8,
-        alpha=1,
-        dropout_p=0.0,
+        rank=16,
+        alpha=8,
         unet_target_modules=unet_target_modules,
         text_encoder_target_modules=text_encoder_target_modules,
     )
@@ -132,7 +116,7 @@ def main(args):
         text_encoder_lr=3e-4,
         learning_rate=1e-3,
         scheduler_num_cycles=1,
-        lora_total_steps=300,
+        lora_total_steps=2000,
         scheduler_warmup_steps=100,
         criterion="mse",
         timestep_snr_gamma=5.0,

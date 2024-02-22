@@ -1,23 +1,3 @@
-pip install -r requirements.txt
-roboflow login
-wandb login
-
-python3 train_lora.py --lora-injection self-attention --dataset sommerhus 
-
-python3 train_lora.py --lora-injection cross-attention --dataset sommerhus 
-
-python3 train_lora.py --lora-injection geglu --dataset sommerhus 
-
-python3 train_lora.py --lora-injection resnet-block --dataset sommerhus 
-
-python3 train_lora.py --lora-injection text-encoder --dataset sommerhus
-
-python3 train_textual_inversion.py --dataset sommerhus
-python3 train_textual_inversion.py --dataset kvist_windows
-
-
-python3 train_lora.py --lora-injection attention-all --dataset sommerhus --criterion mse+ssim
-
 
 
 # BASE MODEL TESTING
@@ -44,20 +24,20 @@ python3 test_timesteps.py --dataset kvist_windows --upper-bound 1000 --lower-bou
 
 # INJECTION TESTING
 
-python3 test_injection.py --dataset kvist_windows --injection self-attention 
-python3 test_injection.py --dataset kvist_windows --injection cross-attention
+python3 test_injection.py --dataset kvist_windows --injection self-attn
+python3 test_injection.py --dataset kvist_windows --injection cross-attn
 python3 test_injection.py --dataset kvist_windows --injection geglu
 python3 test_injection.py --dataset kvist_windows --injection resnet
 python3 test_injection.py --dataset kvist_windows --injection text-encoder
 
-python3 test_injection.py --dataset sommerhus --injection self-attention
-python3 test_injection.py --dataset sommerhus --injection cross-attention
+python3 test_injection.py --dataset sommerhus --injection self-attn
+python3 test_injection.py --dataset sommerhus --injection cross-attn
 python3 test_injection.py --dataset sommerhus --injection geglu
 python3 test_injection.py --dataset sommerhus --injection resnet
 python3 test_injection.py --dataset sommerhus --injection text-encoder
 
-python3 test_injection.py --dataset 7er_stol --injection self-attention
-python3 test_injection.py --dataset 7er_stol --injection cross-attention
+python3 test_injection.py --dataset 7er_stol --injection self-attn
+python3 test_injection.py --dataset 7er_stol --injection cross-attn
 python3 test_injection.py --dataset 7er_stol --injection geglu
 python3 test_injection.py --dataset 7er_stol --injection resnet
 python3 test_injection.py --dataset 7er_stol --injection text-encoder
@@ -67,4 +47,17 @@ python3 test_injection.py --dataset 7er_stol --injection text-encoder
 - sommerhus # fatto
 - 7er_stol # da fare (?)
 
+
+# FINAL TESTING
+python3 test_final_configuration.py --dataset kvist_windows --injection attn-all
+python3 test_final_configuration.py --dataset kvist_windows --injection all
+
+python3 test_final_configuration.py --dataset sommerhus --injection attn-all
+python3 test_final_configuration.py --dataset sommerhus --injection all
+
+python3 test_final_configuration.py --dataset 7er_stol --injection attn-all
+python3 test_final_configuration.py --dataset 7er_stol --injection all
+
+python3 test_final_configuration.py --dataset dinesen --injection attn-all
+python3 test_final_configuration.py --dataset dinesen --injection all
 
