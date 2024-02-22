@@ -60,7 +60,7 @@ def main(args):
     )
 
     run_name = args.injection 
-    project_name = args.dataset + "_injections"
+    project_name = args.dataset + "_final"
 
     wandb_config = WandbConfig(
         project_name=project_name,
