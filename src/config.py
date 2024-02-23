@@ -59,7 +59,7 @@ class TrainConfig:
     criterion: str = 'mse'
     criterion_alpha: float = 0.1 # alpha for the weighted sum of the losses
     ssim_win_size: int = 11
-    eval_every_n_epochs: int = 5
+    eval_every_n_epochs: int = 20
     mixed_precision: str = 'no'
     gradient_checkpointing: bool = False
     gradient_accumulation_steps: int = 1

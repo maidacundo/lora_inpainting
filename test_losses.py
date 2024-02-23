@@ -14,10 +14,10 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--injection",
+        "--criterion",
         type=str,
-        default="self-attention",
-        help="Type of LoRA injection.",
+        default="mse",
+        help="Criterion to be used.",
     )
 
     args = parser.parse_args()
@@ -59,8 +59,8 @@ def main(args):
         data_root='lora_data_' + args.dataset,
     )
 
-    run_name = args.injection 
-    project_name = args.dataset + "_final"
+    run_name = args.criterion 
+    project_name = args.dataset + "_criterion"
 
     wandb_config = WandbConfig(
         project_name=project_name,
@@ -90,19 +90,8 @@ def main(args):
         strengths=strengths
     )
 
-    unet_target_modules = []
-    text_encoder_target_modules = []
-
-    if args.injection == "unet-all":
-        unet_target_modules = ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"]
-
-    if args.injection == "small-all":
-        unet_target_modules = ["to_q", "to_v", "ff.net.0.proj"]
-        text_encoder_target_modules = ["q_proj", "v_proj"]
-
-    if args.injection == "all":
-        unet_target_modules = ["to_q", "to_v", "to_k", "to_out.0", "ff.net.0.proj"]
-        text_encoder_target_modules = ["q_proj", "v_proj", "k_proj", "out_proj"]
+    unet_target_modules = ["to_q", "to_v", "ff.net.0.proj"]
+    text_encoder_target_modules = ["q_proj", "v_proj"]
     
     lora_config=LoraConfig(
         rank=16,
@@ -122,7 +111,7 @@ def main(args):
         scheduler_num_cycles=1,
         lora_total_steps=2000,
         scheduler_warmup_steps=100,
-        criterion="mse",
+        criterion=args.criterion,
         timestep_snr_gamma=5.0,
         load_textual_embeddings=None,
     )

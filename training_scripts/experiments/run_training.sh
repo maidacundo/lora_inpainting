@@ -47,17 +47,28 @@ python3 test_injection.py --dataset 7er_stol --injection text-encoder
 - sommerhus # fatto
 - 7er_stol # da fare (?)
 
+# TESTING LOSSES
+python3 test_losses.py --dataset kvist_windows --loss mse
+python3 test_losses.py --dataset kvist_windows --loss mse+ssim
+
+python3 test_losses.py --dataset sommerhus --loss mse
+python3 test_losses.py --dataset sommerhus --loss mse+ssim
+
+python3 test_losses.py --dataset 7er_stol --loss mse
+python3 test_losses.py --dataset 7er_stol --loss mse+ssim
 
 # FINAL TESTING
-python3 test_final_configuration.py --dataset kvist_windows --injection attn-all
+python3 test_final_configuration.py --dataset kvist_windows --injection unet-all
+python3 test_final_configuration.py --dataset sommerhus --injection unet-all
+python3 test_final_configuration.py --dataset 7er_stol --injection unet-all
+python3 test_final_configuration.py --dataset dinesen --injection unet-all
+
+python3 test_final_configuration.py --dataset kvist_windows --injection small-all
+python3 test_final_configuration.py --dataset sommerhus --injection small-all
+python3 test_final_configuration.py --dataset 7er_stol --injection small-all
+python3 test_final_configuration.py --dataset dinesen --injection small-all
+
 python3 test_final_configuration.py --dataset kvist_windows --injection all
-
-python3 test_final_configuration.py --dataset sommerhus --injection attn-all
 python3 test_final_configuration.py --dataset sommerhus --injection all
-
-python3 test_final_configuration.py --dataset 7er_stol --injection attn-all
 python3 test_final_configuration.py --dataset 7er_stol --injection all
-
-python3 test_final_configuration.py --dataset dinesen --injection attn-all
 python3 test_final_configuration.py --dataset dinesen --injection all
-
