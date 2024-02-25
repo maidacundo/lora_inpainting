@@ -48,14 +48,14 @@ python3 test_injection.py --dataset 7er_stol --injection text-encoder
 - 7er_stol # da fare (?)
 
 # TESTING LOSSES
-python3 test_losses.py --dataset kvist_windows --loss mse
-python3 test_losses.py --dataset kvist_windows --loss mse+ssim
+python3 test_losses.py --dataset kvist_windows --criterion mse
+python3 test_losses.py --dataset kvist_windows --criterion mse+ssim
 
-python3 test_losses.py --dataset sommerhus --loss mse
-python3 test_losses.py --dataset sommerhus --loss mse+ssim
+python3 test_losses.py --dataset sommerhus --criterion mse
+python3 test_losses.py --dataset sommerhus --criterion mse+ssim
 
-python3 test_losses.py --dataset 7er_stol --loss mse
-python3 test_losses.py --dataset 7er_stol --loss mse+ssim
+python3 test_losses.py --dataset 7er_stol --criterion mse
+python3 test_losses.py --dataset 7er_stol --criterion mse+ssim
 
 # FINAL TESTING
 python3 test_final_configuration.py --dataset kvist_windows --injection unet-all
